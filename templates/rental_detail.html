@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ijara tafsilotlari</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📋 Ijara tafsilotlari</h1>
+        </header>
+
+        <div id="rental-details">
+            <div class="loading">Yuklanmoqda...</div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        async function loadRentalDetails() {
+            const rentalId = {{ rental_id }};
+            const userId = new URLSearchParams(window.location.search).get('user_id');
+
+            try {
+                const response = await fetch(`/api/my-rentals?user_id=${userId}`);
+                const rentals = await response.json();
+
+                const rental = rentals.find(r => r.id === rentalId);
+
+                if (rental) {
+                    displayRentalDetails(rental);
+                } else {
+                    document.getElementById('rental-details').innerHTML =
+                        '<div class="loading">❌ Ijara topilmadi</div>';
+                }
+            } catch (error) {
+                console.error('Xatolik:', error);
+                document.getElementById('rental-details').innerHTML =
+                    '<div class="loading">❌ Xatolik yuz berdi</div>';
+            }
+        }
+
+        function displayRentalDetails(rental) {
+            const rentalType = rental.rental_type === 'weekly' ? 'Haftalik' : 'Oylik';
+            const container = document.getElementById('rental-details');
+
+            let paymentsHtml = '';
+            if (rental.payments && rental.payments.length > 0) {
+                paymentsHtml = '<div class="info-section"><h3>💳 To\'lovlar tarixi:</h3><ul>';
+                rental.payments.forEach(payment => {
+                    paymentsHtml += `
+                        <li>
+                            ${payment.payment_date.substring(0, 10)}:
+                            <strong>${formatPrice(payment.amount)}</strong>
+                            <br>
+                            <small>Keyingi to'lov: ${payment.next_payment_date.substring(0, 10)}</small>
+                        </li>
+                    `;
+                });
+                paymentsHtml += '</ul></div>';
+            } else {
+                paymentsHtml = '<div class="info-section"><p>❌ To\'lovlar hali amalga oshirilmagan</p></div>';
+            }
+
+            container.innerHTML = `
+                <div class="scooter-card" style="margin-bottom: 20px;">
+                    <div class="scooter-info">
+                        <div class="scooter-name">${rental.scooter_name}</div>
+                        <div class="scooter-model">${rental.model}</div>
+
+                        <div class="info-section">
+                            <h3>📅 Ijara ma'lumotlari:</h3>
+                            <ul>
+                                <li><strong>Turi:</strong> ${rentalType}</li>
+                                <li><strong>Boshlanish:</strong> ${rental.start_date.substring(0, 10)}</li>
+                                <li><strong>Tugash:</strong> ${rental.end_date.substring(0, 10)}</li>
+                                <li><strong>Narx:</strong> ${formatPrice(rental.total_price)}</li>
+                            </ul>
+                        </div>
+
+                        ${paymentsHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        function formatPrice(price) {
+            return new Intl.NumberFormat('uz-UZ').format(price) + ' so\'m';
+        }
+
+        tg.ready();
+        loadRentalDetails();
+    </script>
+</body>
+</html>
