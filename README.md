@@ -273,3 +273,4 @@ MIT License - erkin foydalanish va o'zgartirish mumkin
 **Muvaffaqiyatli ishlar! 🚀**
 
 Made with ❤️ by Claude Code
+# arenda
