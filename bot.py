@@ -69,11 +69,11 @@ def get_admin_keyboard():
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
-    user = message.from_user
-    await add_user(user.id, user.username or '', user.full_name)
+    try:
+        user = message.from_user
+        await add_user(user.id, user.username or '', user.full_name)
 
-    welcome_text = f"""
-👋 Assalomu alaykum, {user.full_name}!
+        welcome_text = f"""👋 Assalomu alaykum, {user.full_name}!
 
 🛴 <b>Skuter ijarasi botiga xush kelibsiz!</b>
 
@@ -82,10 +82,19 @@ Bu bot orqali siz:
 ✅ Haftalik yoki oylik ijara olishingiz
 ✅ To'lovlarni kuzatishingiz mumkin
 
-Davom etish uchun quyidagi tugmalardan foydalaning:
-"""
+Davom etish uchun quyidagi tugmalardan foydalaning:"""
 
-    await message.answer(welcome_text, reply_markup=get_main_keyboard(user.id), parse_mode='HTML')
+        await message.answer(
+            welcome_text,
+            reply_markup=get_main_keyboard(user.id),
+            parse_mode='HTML'
+        )
+    except Exception as e:
+        logger.error(f"Start command error: {e}")
+        await message.answer(
+            "❌ Xatolik yuz berdi. Iltimos, qaytadan /start bosing.",
+            reply_markup=get_main_keyboard(message.from_user.id)
+        )
 
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main(callback: CallbackQuery):

@@ -15,4 +15,4 @@ RUN mkdir -p data
 
 EXPOSE 5000
 
-CMD ["sh", "-c", "python bot.py & python webapp.py"]
+CMD ["python", "run.py"]
