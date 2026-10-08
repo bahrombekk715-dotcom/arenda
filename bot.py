@@ -298,7 +298,8 @@ async def all_rentals(callback: CallbackQuery):
     buttons = []
     for idx, rental in enumerate(rentals[:10], 1):
         rental_type = "Haftalik" if rental['rental_type'] == 'weekly' else "Oylik"
-        text += f"{idx}. 👤 {rental['full_name']} (@{rental['username'] or 'yo\'q'})\n"
+        username = rental['username'] or "yo'q"
+        text += f"{idx}. 👤 {rental['full_name']} (@{username})\n"
         text += f"   🛴 {rental['scooter_name']} ({rental['model']})\n"
         text += f"   📅 {rental['start_date'][:10]} - {rental['end_date'][:10]}\n"
         text += f"   💵 {rental_type}: {rental['total_price']:,.0f} so'm\n"
@@ -393,10 +394,11 @@ async def process_video(message: Message, state: FSMContext):
             user = message.from_user
             docs = await get_rental_documents(rental_id)
 
+            username = user.username or "yo'q"
             text = (
                 f"🔔 <b>Yangi ijara so'rovi!</b>\n\n"
                 f"👤 Foydalanuvchi: {user.full_name}\n"
-                f"📱 Username: @{user.username or 'yo\'q'}\n"
+                f"📱 Username: @{username}\n"
                 f"🛴 Skuter: {scooter_name}\n"
                 f"🆔 Ijara ID: {rental_id}"
             )
