@@ -70,11 +70,45 @@
           <label>Oylik narx (so'm) *</label>
           <input type="number" id="sMonthly" placeholder="1000000" required min="0">
         </div>
+
+        <!-- Integrated image upload -->
         <div class="form-group full">
-          <label>Rasm URL (ixtiyoriy)</label>
-          <input type="url" id="sImage" placeholder="https://...">
+          <label style="display:block;margin-bottom:6px;font-weight:600;">Skuter rasmi (ichidan yuklash)</label>
+          <div class="image-upload-zone" id="uploadZone">
+            <input type="file" id="imageFileInput" accept="image/*" style="display:none;" onchange="handleFileSelect(event)">
+            
+            <div id="uploadPrompt" class="upload-prompt" onclick="document.getElementById('imageFileInput').click()">
+              <div class="upload-icon">📸</div>
+              <div class="upload-title">Rasm tanlash uchun bosing yoki faylni bu yerga tashlang</div>
+              <div class="upload-sub">Kompyuter yoki telefon galereyasidan (JPG, PNG, WEBP)</div>
+            </div>
+
+            <div id="imagePreviewWrap" class="image-preview-wrap" style="display:none;">
+              <img id="imagePreview" src="" alt="Skuter rasmi">
+              <div class="image-preview-actions">
+                <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('imageFileInput').click()">🔄 Boshqa rasm</button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="removeImage()">🗑️ O'chirish</button>
+              </div>
+            </div>
+
+            <div id="uploadSpinner" style="display:none;text-align:center;padding:24px;">
+              <div class="spinner" style="margin:0 auto 8px;"></div>
+              <span style="font-size:13px;color:var(--gray);">Rasm yuklanmoqda...</span>
+            </div>
+          </div>
+          <input type="hidden" id="sImage">
+
+          <!-- Fallback URL toggle -->
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+            <span style="font-size:12px;color:var(--gray);">Tashqi rasm havolasi (URL) bormi?</span>
+            <button type="button" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:12px;font-weight:600;" onclick="toggleUrlInput()">URL orqali kiritish ▾</button>
+          </div>
+          <div id="urlInputContainer" style="display:none;margin-top:6px;">
+            <input type="url" id="sImageUrlManual" placeholder="https://..." oninput="onManualUrlInput(this.value)">
+          </div>
         </div>
       </div>
+
       <div style="display:flex;gap:10px;margin-top:20px;">
         <button type="submit" class="btn btn-filled" style="flex:1;">Saqlash</button>
         <button type="button" class="btn btn-outline" onclick="closeModal()">Bekor</button>
@@ -158,6 +192,108 @@ function renderScooters(list) {
 
 function fmt(n) { return new Intl.NumberFormat('uz-UZ').format(n); }
 
+// ==================== IMAGE UPLOAD LOGIC ====================
+const zone = document.getElementById('uploadZone');
+['dragenter', 'dragover'].forEach(eventName => {
+  zone.addEventListener(eventName, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    zone.classList.add('dragover');
+  }, false);
+});
+['dragleave', 'drop'].forEach(eventName => {
+  zone.addEventListener(eventName, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    zone.classList.remove('dragover');
+  }, false);
+});
+zone.addEventListener('drop', (e) => {
+  const dt = e.dataTransfer;
+  const files = dt.files;
+  if (files && files.length) {
+    uploadImageFile(files[0]);
+  }
+});
+
+function handleFileSelect(event) {
+  const file = event.target.files[0];
+  if (file) {
+    uploadImageFile(file);
+  }
+}
+
+async function uploadImageFile(file) {
+  if (!file.type.startsWith('image/')) {
+    showToast('Iltimos, faqat rasm faylini tanlang', 'error');
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('Rasm hajmi 10MB dan kichik bo\'lishi kerak', 'error');
+    return;
+  }
+
+  // Show local preview immediately
+  const localUrl = URL.createObjectURL(file);
+  document.getElementById('imagePreview').src = localUrl;
+  document.getElementById('uploadPrompt').style.display = 'none';
+  document.getElementById('imagePreviewWrap').style.display = 'none';
+  document.getElementById('uploadSpinner').style.display = 'block';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/api/admin/upload-image', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    document.getElementById('uploadSpinner').style.display = 'none';
+    if (res.ok && data.success) {
+      document.getElementById('sImage').value = data.image_url;
+      document.getElementById('imagePreview').src = data.image_url;
+      document.getElementById('imagePreviewWrap').style.display = 'flex';
+      showToast('✅ Rasm muvaffaqiyatli yuklandi!', 'success');
+    } else {
+      removeImage();
+      showToast(data.error || 'Rasm yuklashda xatolik yuz berdi', 'error');
+    }
+  } catch(e) {
+    document.getElementById('uploadSpinner').style.display = 'none';
+    removeImage();
+    showToast('Rasm yuklashda xatolik yuz berdi', 'error');
+  }
+}
+
+function removeImage() {
+  document.getElementById('sImage').value = '';
+  document.getElementById('imageFileInput').value = '';
+  document.getElementById('sImageUrlManual').value = '';
+  document.getElementById('imagePreview').src = '';
+  document.getElementById('imagePreviewWrap').style.display = 'none';
+  document.getElementById('uploadSpinner').style.display = 'none';
+  document.getElementById('uploadPrompt').style.display = 'block';
+}
+
+function toggleUrlInput() {
+  const c = document.getElementById('urlInputContainer');
+  c.style.display = c.style.display === 'none' ? 'block' : 'none';
+}
+
+function onManualUrlInput(val) {
+  val = val.trim();
+  document.getElementById('sImage').value = val;
+  if (val) {
+    document.getElementById('imagePreview').src = val;
+    document.getElementById('uploadPrompt').style.display = 'none';
+    document.getElementById('imagePreviewWrap').style.display = 'flex';
+  } else {
+    removeImage();
+  }
+}
+
+// ==================== MODAL OPERATIONS ====================
 function openAddModal() {
   document.getElementById('modalTitle').textContent = 'Yangi skuter qo\'shish';
   document.getElementById('scooterId').value = '';
@@ -165,7 +301,7 @@ function openAddModal() {
   document.getElementById('sModel').value = '';
   document.getElementById('sWeekly').value = '';
   document.getElementById('sMonthly').value = '';
-  document.getElementById('sImage').value = '';
+  removeImage();
   document.getElementById('scooterModal').classList.add('open');
 }
 
@@ -178,7 +314,15 @@ function editScooter(id) {
   document.getElementById('sModel').value = s.model || '';
   document.getElementById('sWeekly').value = s.price_weekly;
   document.getElementById('sMonthly').value = s.price_monthly;
-  document.getElementById('sImage').value = s.image_url || '';
+  if (s.image_url) {
+    document.getElementById('sImage').value = s.image_url;
+    document.getElementById('imagePreview').src = s.image_url;
+    document.getElementById('uploadPrompt').style.display = 'none';
+    document.getElementById('imagePreviewWrap').style.display = 'flex';
+    document.getElementById('sImageUrlManual').value = s.image_url.startsWith('http') ? s.image_url : '';
+  } else {
+    removeImage();
+  }
   document.getElementById('scooterModal').classList.add('open');
 }
 
@@ -203,16 +347,16 @@ async function submitScooter(e) {
     }
     if (res.ok) {
       closeModal();
-      showToast('✅ Saqlandi!', 'success');
+      showToast('✅ Muvaffaqiyatli saqlandi!', 'success');
       loadAllScooters();
-    } else { showToast('Xatolik!', 'error'); }
-  } catch(e) { showToast('Xatolik!', 'error'); }
+    } else { showToast('Xatolik yuz berdi!', 'error'); }
+  } catch(e) { showToast('Xatolik yuz berdi!', 'error'); }
 }
 
 async function deleteScooter(id) {
   if (!confirm('Bu skuterni o\'chirishni tasdiqlaysizmi?')) return;
   const res = await fetch(`/api/admin/scooter/${id}/delete`, { method:'DELETE' });
-  if (res.ok) { showToast('O\'chirildi', 'success'); loadAllScooters(); }
+  if (res.ok) { showToast('Skuter o\'chirildi', 'success'); loadAllScooters(); }
   else showToast('Xatolik!', 'error');
 }
 

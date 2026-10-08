@@ -24,15 +24,15 @@
 </div>
 
 <nav class="bottom-nav">
-  <a class="nav-item" href="/">
+  <a class="nav-item" href="/{% if user_id %}?user_id={{ user_id }}{% endif %}">
     <span class="nav-icon">🏠</span>
     <span>Bosh sahifa</span>
   </a>
-  <a class="nav-item active" href="/my-rentals">
+  <a class="nav-item active" href="/my-rentals{% if user_id %}?user_id={{ user_id }}{% endif %}">
     <span class="nav-icon">📋</span>
     <span>Ijaralarm</span>
   </a>
-  <a class="nav-item" href="#">
+  <a class="nav-item" href="/profile{% if user_id %}?user_id={{ user_id }}{% endif %}">
     <span class="nav-icon">👤</span>
     <span>Profil</span>
   </a>
@@ -48,8 +48,9 @@ const tg = window.Telegram?.WebApp;
 if (tg) { tg.expand(); tg.setHeaderColor('#6366f1'); }
 
 async function loadRentals() {
+  const uid = USER_ID || window.CURRENT_USER_ID;
   try {
-    const url = USER_ID ? `/api/my-rentals?user_id=${USER_ID}` : '/api/my-rentals';
+    const url = uid ? `/api/my-rentals?user_id=${uid}` : '/api/my-rentals';
     const res = await fetch(url);
     const rentals = await res.json();
     renderRentals(rentals);

@@ -4,9 +4,14 @@
 {% block content %}
 <!-- Header -->
 <div class="app-header">
-  <div class="header-content">
-    <div class="header-title">🛴 Skuter Ijarasi</div>
-    <div class="header-sub">Eng yaxshi skuterlarni ijaraga oling</div>
+  <div class="header-content" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <div class="header-title">🛴 Skuter Ijarasi</div>
+      <div class="header-sub">Eng yaxshi skuterlarni ijaraga oling</div>
+    </div>
+    <a href="/profile{% if user_id %}?user_id={{ user_id }}{% endif %}" class="header-profile-btn" title="Mening profilim">
+      <span>👤</span>
+    </a>
   </div>
 </div>
 
@@ -45,7 +50,7 @@
     <span class="nav-icon">📋</span>
     <span>Ijaralarm</span>
   </a>
-  <a class="nav-item" href="#" onclick="openProfile()">
+  <a class="nav-item" href="/profile{% if user_id %}?user_id={{ user_id }}{% endif %}">
     <span class="nav-icon">👤</span>
     <span>Profil</span>
   </a>
@@ -182,14 +187,15 @@ function closeModal(e) {
 }
 
 async function rentScooter(scooterId) {
-  if (!USER_ID) { showToast('Iltimos, botdan kiriting', 'error'); return; }
+  const uid = USER_ID || window.CURRENT_USER_ID;
+  if (!uid) { showToast('Iltimos, botdan kiring', 'error'); return; }
   const s = allScooters.find(x => x.id === scooterId);
   const price = selectedType === 'weekly' ? s.price_weekly : s.price_monthly;
   try {
     const res = await fetch('/api/rental/create', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ scooter_id: scooterId, rental_type: selectedType, total_price: price })
+      body: JSON.stringify({ scooter_id: scooterId, rental_type: selectedType, total_price: price, user_id: uid })
     });
     const data = await res.json();
     if (data.success) {
@@ -197,7 +203,7 @@ async function rentScooter(scooterId) {
       showToast('✅ Muvaffaqiyatli ijaraga olindi!', 'success');
       loadScooters();
     } else {
-      showToast('Xatolik yuz berdi', 'error');
+      showToast('Xatolik yuz berdi: ' + (data.error || ''), 'error');
     }
   } catch(e) {
     showToast('Xatolik yuz berdi', 'error');
@@ -205,7 +211,8 @@ async function rentScooter(scooterId) {
 }
 
 function openProfile() {
-  showToast('Profil tez orada qo\'shiladi');
+  const uid = USER_ID || window.CURRENT_USER_ID;
+  window.location.href = uid ? `/profile?user_id=${uid}` : '/profile';
 }
 
 function showToast(msg, type='') {

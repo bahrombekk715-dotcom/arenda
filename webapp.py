@@ -1,17 +1,27 @@
 from flask import Flask, render_template, request, jsonify, session, redirect
 from functools import wraps
 import os
+import time
+import uuid
+from werkzeug.utils import secure_filename
 from database import (
     get_all_scooters, get_scooter, get_user_rentals, get_rental_payments,
     add_scooter, update_scooter, delete_scooter, update_scooter_status,
     get_all_rentals, get_stats, is_admin, create_rental, add_document,
     get_rental_documents, add_payment, complete_rental, get_all_users,
-    get_all_scooters_admin
+    get_all_scooters_admin, get_user, get_user_profile_data, update_user_profile
 )
 import asyncio
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
+
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads', 'scooters')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 _bot_ref = None
 
@@ -37,27 +47,34 @@ def admin_required(f):
 
 @app.route('/')
 def index():
-    user_id = request.args.get('user_id')
+    user_id = request.args.get('user_id') or session.get('user_id')
     if user_id:
-        session['user_id'] = user_id
+        session['user_id'] = str(user_id)
     return render_template('index.html', user_id=user_id)
 
 @app.route('/my-rentals')
 def my_rentals():
-    user_id = session.get('user_id') or request.args.get('user_id')
+    user_id = request.args.get('user_id') or session.get('user_id')
     if user_id:
-        session['user_id'] = user_id
+        session['user_id'] = str(user_id)
     return render_template('my_rentals.html', user_id=user_id)
+
+@app.route('/profile')
+def profile():
+    user_id = request.args.get('user_id') or session.get('user_id')
+    if user_id:
+        session['user_id'] = str(user_id)
+    return render_template('profile.html', user_id=user_id)
 
 # ==================== ADMIN ROUTES ====================
 
 @app.route('/admin')
 @async_route
 async def admin_dashboard():
-    user_id = request.args.get('user_id')
+    user_id = request.args.get('user_id') or session.get('user_id')
     if not user_id or not await is_admin(int(user_id)):
         return "Access Denied", 403
-    session['user_id'] = user_id
+    session['user_id'] = str(user_id)
     session['is_admin'] = True
     return render_template('admin/dashboard.html')
 
@@ -127,14 +144,88 @@ async def api_my_rentals():
 @app.route('/api/rental/create', methods=['POST'])
 @async_route
 async def api_create_rental():
-    data = request.json
-    user_id = session.get('user_id')
+    data = request.json or {}
+    user_id = session.get('user_id') or data.get('user_id')
     if not user_id:
         return jsonify({'error': 'Not authenticated'}), 401
+    
     rental_id = await create_rental(
         int(user_id), data['scooter_id'], data['rental_type'], data['total_price']
     )
+
+    # Telegram orqali xabar yuborish
+    if _bot_ref:
+        try:
+            scooter = await get_scooter(data['scooter_id'])
+            scooter_name = scooter['name'] if scooter else "Skuter"
+            period_name = "1 haftalik (7 kun)" if data['rental_type'] == 'weekly' else "1 oylik (30 kun)"
+
+            await _bot_ref.send_message(
+                int(user_id),
+                f"🎉 <b>Tabriklaymiz! Ijara rasmiylashtirildi!</b>\n\n"
+                f"🛴 <b>Skuter:</b> {scooter_name}\n"
+                f"⏱️ <b>Muddat:</b> {period_name}\n"
+                f"💵 <b>Summa:</b> {float(data['total_price']):,.0f} so'm\n\n"
+                f"Ijara tafsilotlarini 'Profil' yoki 'Ijaralarim' bo'limida ko'rishingiz mumkin.",
+                parse_mode='HTML'
+            )
+
+            from database import get_all_admins
+            admins = await get_all_admins()
+            for admin in admins:
+                try:
+                    await _bot_ref.send_message(
+                        admin['user_id'],
+                        f"🔔 <b>Yangi ijara buyurtmasi!</b>\n\n"
+                        f"🆔 Ijara ID: {rental_id}\n"
+                        f"👤 Mijoz ID: {user_id}\n"
+                        f"🛴 Skuter: {scooter_name}\n"
+                        f"💵 Summa: {float(data['total_price']):,.0f} so'm",
+                        parse_mode='HTML'
+                    )
+                except Exception:
+                    pass
+        except Exception as err:
+            print(f"Rental notify error: {err}")
+
     return jsonify({'rental_id': rental_id, 'success': True})
+
+# Profile API
+@app.route('/api/profile')
+@async_route
+async def api_profile():
+    user_id = session.get('user_id') or request.args.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'User not authenticated'}), 401
+    try:
+        uid = int(user_id)
+    except ValueError:
+        return jsonify({'error': 'Invalid user_id'}), 400
+
+    profile_data = await get_user_profile_data(uid)
+    if not profile_data:
+        return jsonify({'error': 'Foydalanuvchi topilmadi'}), 404
+
+    profile_data['user']['is_admin'] = await is_admin(uid)
+    return jsonify(profile_data)
+
+@app.route('/api/profile/update', methods=['POST'])
+@async_route
+async def api_profile_update():
+    data = request.json or {}
+    user_id = data.get('user_id') or session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'User not authenticated'}), 401
+
+    try:
+        uid = int(user_id)
+    except ValueError:
+        return jsonify({'error': 'Invalid user_id'}), 400
+
+    full_name = data.get('full_name')
+    phone = data.get('phone')
+    await update_user_profile(uid, full_name=full_name, phone=phone)
+    return jsonify({'success': True})
 
 # Admin API
 @app.route('/api/admin/stats')
@@ -194,6 +285,25 @@ async def api_admin_delete_scooter(scooter_id):
         return jsonify({'error': 'Access denied'}), 403
     await delete_scooter(scooter_id)
     return jsonify({'success': True})
+
+@app.route('/api/admin/upload-image', methods=['POST'])
+def api_upload_image():
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Access denied'}), 403
+    if 'file' not in request.files:
+        return jsonify({'error': 'Fayl tanlanmadi'}), 400
+    file = request.files['file']
+    if not file or file.filename == '':
+        return jsonify({'error': 'Fayl tanlanmadi'}), 400
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'Faqat rasm fayllari (JPG, PNG, WEBP, GIF) qabul qilinadi'}), 400
+
+    ext = file.filename.rsplit('.', 1)[1].lower()
+    filename = f"scooter_{int(time.time())}_{uuid.uuid4().hex[:8]}.{ext}"
+    save_path = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(save_path)
+    image_url = f"/static/uploads/scooters/{filename}"
+    return jsonify({'success': True, 'image_url': image_url})
 
 @app.route('/api/admin/rental/<int:rental_id>/complete', methods=['POST'])
 @async_route

@@ -76,10 +76,69 @@ async def init_db():
 async def add_user(user_id: int, username: str, full_name: str, phone: str = None):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute('''
-            INSERT OR REPLACE INTO users (user_id, username, full_name, phone, registration_date)
+            INSERT INTO users (user_id, username, full_name, phone, registration_date)
             VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                username = excluded.username,
+                full_name = excluded.full_name,
+                phone = COALESCE(excluded.phone, users.phone)
         ''', (user_id, username, full_name, phone, datetime.now().isoformat()))
         await db.commit()
+
+async def update_user_phone(user_id: int, phone: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute('UPDATE users SET phone = ? WHERE user_id = ?', (phone, user_id))
+        await db.commit()
+
+async def update_user_profile(user_id: int, full_name: str = None, phone: str = None):
+    async with aiosqlite.connect(DB_PATH) as db:
+        if full_name and phone:
+            await db.execute('UPDATE users SET full_name = ?, phone = ? WHERE user_id = ?', (full_name, phone, user_id))
+        elif full_name:
+            await db.execute('UPDATE users SET full_name = ? WHERE user_id = ?', (full_name, user_id))
+        elif phone:
+            await db.execute('UPDATE users SET phone = ? WHERE user_id = ?', (phone, user_id))
+        await db.commit()
+
+async def get_user_profile_data(user_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute('SELECT * FROM users WHERE user_id = ?', (user_id,)) as cursor:
+            user = await cursor.fetchone()
+        if not user:
+            return None
+
+        async with db.execute('''
+            SELECT r.*, s.name as scooter_name, s.model, s.image_url
+            FROM rentals r
+            JOIN scooters s ON r.scooter_id = s.id
+            WHERE r.user_id = ?
+            ORDER BY r.id DESC
+        ''', (user_id,)) as cursor:
+            rentals = await cursor.fetchall()
+
+        async with db.execute('''
+            SELECT SUM(p.amount) as total_spent
+            FROM payments p
+            JOIN rentals r ON p.rental_id = r.id
+            WHERE r.user_id = ? AND p.status = 'paid'
+        ''', (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            total_spent = (row['total_spent'] if row and row['total_spent'] else 0)
+
+        rental_list = [dict(r) for r in rentals]
+        active_count = sum(1 for r in rental_list if r['status'] == 'active')
+
+        return {
+            'user': dict(user),
+            'rentals': rental_list,
+            'stats': {
+                'total_rentals': len(rental_list),
+                'active_rentals': active_count,
+                'completed_rentals': len(rental_list) - active_count,
+                'total_spent': total_spent
+            }
+        }
 
 async def get_user(user_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -139,15 +198,19 @@ async def add_document(user_id: int, rental_id: int, doc_type: str, file_id: str
         ''', (user_id, rental_id, doc_type, file_id, datetime.now().isoformat()))
         await db.commit()
 
-async def get_user_rentals(user_id: int):
+async def get_user_rentals(user_id: int, active_only: bool = False):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute('''
-            SELECT r.*, s.name as scooter_name, s.model
+        query = '''
+            SELECT r.*, s.name as scooter_name, s.model, s.image_url
             FROM rentals r
             JOIN scooters s ON r.scooter_id = s.id
-            WHERE r.user_id = ? AND r.status = "active"
-        ''', (user_id,)) as cursor:
+            WHERE r.user_id = ?
+        '''
+        if active_only:
+            query += ' AND r.status = "active"'
+        query += ' ORDER BY r.start_date DESC'
+        async with db.execute(query, (user_id,)) as cursor:
             return await cursor.fetchall()
 
 async def get_all_rentals():
