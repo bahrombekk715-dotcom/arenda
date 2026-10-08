@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Mening Ijaralarm{% endblock %}
+
+{% block content %}
+<div class="app-header">
+  <div class="header-content">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <a href="/" style="color:rgba(255,255,255,0.7);font-size:20px;text-decoration:none;">←</a>
+      <div>
+        <div class="header-title" style="font-size:20px;">📋 Mening Ijaralarm</div>
+        <div class="header-sub">Faol va tugallangan ijaralar</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="main-content">
+  <div id="rentalsContainer">
+    <div class="loading-wrap">
+      <div class="spinner"></div>
+      <p style="color:var(--gray);font-size:14px;">Yuklanmoqda...</p>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <a class="nav-item" href="/">
+    <span class="nav-icon">🏠</span>
+    <span>Bosh sahifa</span>
+  </a>
+  <a class="nav-item active" href="/my-rentals">
+    <span class="nav-icon">📋</span>
+    <span>Ijaralarm</span>
+  </a>
+  <a class="nav-item" href="#">
+    <span class="nav-icon">👤</span>
+    <span>Profil</span>
+  </a>
+</nav>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const USER_ID = "{{ user_id or '' }}";
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.expand(); tg.setHeaderColor('#6366f1'); }
+
+async function loadRentals() {
+  try {
+    const url = USER_ID ? `/api/my-rentals?user_id=${USER_ID}` : '/api/my-rentals';
+    const res = await fetch(url);
+    const rentals = await res.json();
+    renderRentals(rentals);
+  } catch(e) {
+    document.getElementById('rentalsContainer').innerHTML =
+      '<div class="empty-state"><div class="empty-icon">😕</div><div class="empty-title">Xatolik yuz berdi</div></div>';
+  }
+}
+
+function renderRentals(rentals) {
+  const c = document.getElementById('rentalsContainer');
+  if (!rentals.length) {
+    c.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🛴</div>
+        <div class="empty-title">Ijaralar yo'q</div>
+        <p style="color:var(--gray);font-size:14px;margin-top:8px;">Hali birorta skuter ijaraga olmadingiz</p>
+        <a href="/" style="display:inline-block;margin-top:16px;padding:12px 24px;background:var(--primary);color:#fff;border-radius:12px;text-decoration:none;font-weight:600;">🛴 Skuter tanlash</a>
+      </div>`;
+    return;
+  }
+
+  c.innerHTML = rentals.map(r => {
+    const end = new Date(r.end_date);
+    const now = new Date();
+    const daysLeft = Math.ceil((end - now) / 86400000);
+    const typeText = r.rental_type === 'weekly' ? 'Haftalik' : 'Oylik';
+    const urgentClass = daysLeft <= 3 ? 'badge-warning' : 'badge-active';
+
+    return `
+      <div class="rental-card">
+        <div class="rental-header">
+          <div class="rental-name">🛴 ${r.scooter_name}</div>
+          <span class="badge ${daysLeft > 0 ? urgentClass : 'badge-completed'}">${daysLeft > 0 ? 'Faol' : 'Tugagan'}</span>
+        </div>
+        <div class="rental-info">
+          <div class="info-item">
+            <strong>${r.model || '—'}</strong>
+            Model
+          </div>
+          <div class="info-item">
+            <strong>${typeText}</strong>
+            Ijara turi
+          </div>
+          <div class="info-item">
+            <strong>${formatDate(r.start_date)}</strong>
+            Boshlanish
+          </div>
+          <div class="info-item">
+            <strong>${formatDate(r.end_date)}</strong>
+            Tugash
+          </div>
+          <div class="info-item">
+            <strong>${formatPrice(r.total_price)}</strong>
+            Umumiy narx
+          </div>
+          <div class="info-item">
+            <strong style="color:${daysLeft <= 3 ? 'var(--warning)' : 'var(--success)'}">${daysLeft > 0 ? daysLeft + ' kun' : 'Tugagan'}</strong>
+            Qolgan vaqt
+          </div>
+        </div>
+        ${daysLeft <= 3 && daysLeft > 0 ? `
+          <div style="margin-top:12px;background:#fef3c7;border-radius:10px;padding:10px 14px;font-size:13px;color:#92400e;display:flex;align-items:center;gap:8px;">
+            ⚠️ Ijara muddati yaqinlashmoqda!
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function formatDate(d) {
+  return new Date(d).toLocaleDateString('uz-UZ', {day:'2-digit',month:'2-digit',year:'numeric'});
+}
+function formatPrice(n) {
+  return new Intl.NumberFormat('uz-UZ').format(n) + ' so\'m';
+}
+
+loadRentals();
+</script>
+{% endblock %}

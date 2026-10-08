@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block body %}
+<div class="admin-layout">
+  <!-- Sidebar overlay (mobile) -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <!-- Sidebar -->
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-text">🛴 SkuterAdmin</div>
+      <div class="sidebar-logo-sub">Boshqaruv paneli</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-group-label">Asosiy</div>
+      <a href="/admin" class="sidebar-link active">
+        <span class="sidebar-link-icon">📊</span> Dashboard
+      </a>
+      <a href="/admin/rentals" class="sidebar-link">
+        <span class="sidebar-link-icon">📋</span> Ijaralar
+      </a>
+      <div class="sidebar-group-label">Katalog</div>
+      <a href="/admin/scooters" class="sidebar-link">
+        <span class="sidebar-link-icon">🛴</span> Skuterlar
+      </a>
+      <div class="sidebar-group-label">Foydalanuvchilar</div>
+      <a href="/admin/users" class="sidebar-link">
+        <span class="sidebar-link-icon">👥</span> Barcha foydalanuvchilar
+      </a>
+      <div class="sidebar-group-label">Xabarnomalar</div>
+      <a href="/admin/notify" class="sidebar-link">
+        <span class="sidebar-link-icon">📨</span> Xabar yuborish
+      </a>
+    </nav>
+  </aside>
+
+  <div class="admin-main">
+    <!-- Topbar -->
+    <div class="admin-topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <div class="topbar-title">📊 Dashboard</div>
+      </div>
+      <div class="topbar-right">
+        <span style="font-size:13px;color:var(--gray);" id="lastUpdate"></span>
+        <button class="btn btn-outline btn-sm" onclick="refreshAll()">🔄 Yangilash</button>
+      </div>
+    </div>
+
+    <!-- Page Content -->
+    <div class="admin-page">
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon-wrap purple">👥</div>
+          <div class="stat-info">
+            <div class="stat-label">Jami foydalanuvchilar</div>
+            <div class="stat-value" id="totalUsers">—</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon-wrap pink">🛴</div>
+          <div class="stat-info">
+            <div class="stat-label">Jami skuterlar</div>
+            <div class="stat-value" id="totalScooters">—</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon-wrap blue">📋</div>
+          <div class="stat-info">
+            <div class="stat-label">Faol ijaralar</div>
+            <div class="stat-value" id="activeRentals">—</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon-wrap green">💰</div>
+          <div class="stat-info">
+            <div class="stat-label">Umumiy daromad</div>
+            <div class="stat-value" id="totalRevenue" style="font-size:20px;">—</div>
+            <div class="stat-change">so'm</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Rentals Table -->
+      <div class="table-card">
+        <div class="table-header">
+          <div class="table-title">🕐 So'nggi ijaralar</div>
+          <a href="/admin/rentals" class="btn btn-outline btn-sm">Barchasini ko'rish →</a>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Foydalanuvchi</th>
+                <th>Skuter</th>
+                <th>Tur</th>
+                <th>Narx</th>
+                <th>Boshlanish</th>
+                <th>Tugash</th>
+                <th>Holat</th>
+              </tr>
+            </thead>
+            <tbody id="rentalsBody">
+              <tr><td colspan="8" style="text-align:center;padding:30px;color:var(--gray);">
+                <div class="spinner" style="margin:0 auto 8px;"></div>
+                Yuklanmoqda...
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleSidebar() {
+  document.getElementById('adminSidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+function closeSidebar() {
+  document.getElementById('adminSidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+}
+
+async function loadStats() {
+  try {
+    const res = await fetch('/api/admin/stats');
+    const s = await res.json();
+    document.getElementById('totalUsers').textContent = s.total_users;
+    document.getElementById('totalScooters').textContent = s.total_scooters;
+    document.getElementById('activeRentals').textContent = s.active_rentals;
+    document.getElementById('totalRevenue').textContent = new Intl.NumberFormat('uz-UZ').format(s.total_revenue);
+  } catch(e) {}
+}
+
+async function loadRentals() {
+  try {
+    const res = await fetch('/api/admin/rentals');
+    const rentals = await res.json();
+    const tbody = document.getElementById('rentalsBody');
+    if (!rentals.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--gray);">Ijaralar yo\'q</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rentals.slice(0, 10).map((r, i) => {
+      const type = r.rental_type === 'weekly' ? '<span class="badge badge-active">Haftalik</span>' : '<span class="badge" style="background:#ede9fe;color:#4f46e5;">Oylik</span>';
+      const end = new Date(r.end_date);
+      const daysLeft = Math.ceil((end - new Date()) / 86400000);
+      const status = daysLeft > 0 ? '<span class="badge badge-active">Faol</span>' : '<span class="badge badge-completed">Tugagan</span>';
+      return `<tr>
+        <td style="color:var(--gray);font-size:12px;">#${r.id}</td>
+        <td>
+          <div class="user-cell">
+            <div class="avatar">${(r.full_name || 'U')[0].toUpperCase()}</div>
+            <div class="user-cell-info">
+              <div class="user-cell-name">${r.full_name || '—'}</div>
+              <div class="user-cell-username">@${r.username || '—'}</div>
+            </div>
+          </div>
+        </td>
+        <td><strong>${r.scooter_name}</strong><br><span style="color:var(--gray);font-size:12px;">${r.model || ''}</span></td>
+        <td>${type}</td>
+        <td><strong>${new Intl.NumberFormat('uz-UZ').format(r.total_price)}</strong> <span style="color:var(--gray);font-size:12px;">so'm</span></td>
+        <td style="color:var(--gray);font-size:13px;">${fmtDate(r.start_date)}</td>
+        <td style="color:var(--gray);font-size:13px;">${fmtDate(r.end_date)}</td>
+        <td>${status}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {}
+}
+
+function fmtDate(d) {
+  return new Date(d).toLocaleDateString('uz-UZ', {day:'2-digit',month:'2-digit',year:'2-digit'});
+}
+
+function refreshAll() {
+  loadStats();
+  loadRentals();
+  document.getElementById('lastUpdate').textContent = 'Yangilandi: ' + new Date().toLocaleTimeString('uz-UZ');
+}
+
+refreshAll();
+setInterval(refreshAll, 30000);
+</script>
+{% endblock %}

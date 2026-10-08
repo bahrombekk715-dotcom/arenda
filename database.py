@@ -14,7 +14,8 @@ async def init_db():
                 full_name TEXT,
                 phone TEXT,
                 registration_date TEXT,
-                is_blocked INTEGER DEFAULT 0
+                is_blocked INTEGER DEFAULT 0,
+                is_admin INTEGER DEFAULT 0
             )
         ''')
 
@@ -99,6 +100,12 @@ async def get_all_scooters():
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute('SELECT * FROM scooters WHERE status = "available"') as cursor:
+            return await cursor.fetchall()
+
+async def get_all_scooters_admin():
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute('SELECT * FROM scooters ORDER BY id DESC') as cursor:
             return await cursor.fetchall()
 
 async def get_scooter(scooter_id: int):
@@ -210,3 +217,70 @@ async def get_stats():
             'active_rentals': active_rentals,
             'total_revenue': total_revenue
         }
+
+async def is_admin(user_id: int) -> bool:
+    """Check if user is admin"""
+    import os
+    admin_ids = os.getenv('ADMIN_IDS', '')
+    if str(user_id) in admin_ids:
+        return True
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute('SELECT is_admin FROM users WHERE user_id = ?', (user_id,)) as cursor:
+            user = await cursor.fetchone()
+            return user and user['is_admin'] == 1
+
+async def get_all_admins():
+    """Get all admin users"""
+    import os
+    admin_ids = [int(x) for x in os.getenv('ADMIN_IDS', '').split(',') if x]
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        placeholders = ','.join('?' * len(admin_ids))
+        query = f'SELECT * FROM users WHERE user_id IN ({placeholders}) OR is_admin = 1'
+        async with db.execute(query, admin_ids) as cursor:
+            return await cursor.fetchall()
+
+async def update_scooter_status(scooter_id: int, status: str):
+    """Update scooter status"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute('UPDATE scooters SET status = ? WHERE id = ?', (status, scooter_id))
+        await db.commit()
+
+async def delete_scooter(scooter_id: int):
+    """Delete scooter"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute('DELETE FROM scooters WHERE id = ?', (scooter_id,))
+        await db.commit()
+
+async def update_scooter(scooter_id: int, name: str, model: str, price_weekly: float, price_monthly: float, image_url: str = None):
+    """Update scooter info"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute('''
+            UPDATE scooters
+            SET name = ?, model = ?, price_weekly = ?, price_monthly = ?, image_url = ?
+            WHERE id = ?
+        ''', (name, model, price_weekly, price_monthly, image_url, scooter_id))
+        await db.commit()
+
+async def get_all_users():
+    """Get all users"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute('SELECT * FROM users ORDER BY registration_date DESC') as cursor:
+            return await cursor.fetchall()
+
+async def complete_rental(rental_id: int):
+    """Mark rental as completed"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute('UPDATE rentals SET status = "completed" WHERE id = ?', (rental_id,))
+
+        # Get scooter_id to update status
+        async with db.execute('SELECT scooter_id FROM rentals WHERE id = ?', (rental_id,)) as cursor:
+            rental = await cursor.fetchone()
+            if rental:
+                await db.execute('UPDATE scooters SET status = "available" WHERE id = ?', (rental[0],))
+
+        await db.commit()

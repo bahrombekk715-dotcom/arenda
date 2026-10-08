@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Skuterlar - Admin{% endblock %}
+
+{% block body %}
+<div class="admin-layout">
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-text">🛴 SkuterAdmin</div>
+      <div class="sidebar-logo-sub">Boshqaruv paneli</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-group-label">Asosiy</div>
+      <a href="/admin" class="sidebar-link"><span class="sidebar-link-icon">📊</span> Dashboard</a>
+      <a href="/admin/rentals" class="sidebar-link"><span class="sidebar-link-icon">📋</span> Ijaralar</a>
+      <div class="sidebar-group-label">Katalog</div>
+      <a href="/admin/scooters" class="sidebar-link active"><span class="sidebar-link-icon">🛴</span> Skuterlar</a>
+      <div class="sidebar-group-label">Foydalanuvchilar</div>
+      <a href="/admin/users" class="sidebar-link"><span class="sidebar-link-icon">👥</span> Barcha foydalanuvchilar</a>
+      <div class="sidebar-group-label">Xabarnomalar</div>
+      <a href="/admin/notify" class="sidebar-link"><span class="sidebar-link-icon">📨</span> Xabar yuborish</a>
+    </nav>
+  </aside>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <div class="topbar-title">🛴 Skuterlar</div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-filled" onclick="openAddModal()">+ Yangi skuter</button>
+      </div>
+    </div>
+
+    <div class="admin-page">
+      <div id="scooterGrid" class="scooter-grid-admin">
+        <div style="grid-column:1/-1;text-align:center;padding:40px;">
+          <div class="spinner" style="margin:0 auto 12px;"></div>
+          <span style="color:var(--gray);">Yuklanmoqda...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-backdrop" id="scooterModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 style="font-size:18px;font-weight:700;" id="modalTitle">Yangi skuter qo'shish</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form id="scooterForm" onsubmit="submitScooter(event)">
+      <input type="hidden" id="scooterId">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Nomi *</label>
+          <input type="text" id="sName" placeholder="Honda PCX 150" required>
+        </div>
+        <div class="form-group">
+          <label>Model</label>
+          <input type="text" id="sModel" placeholder="PCX 150">
+        </div>
+        <div class="form-group">
+          <label>Haftalik narx (so'm) *</label>
+          <input type="number" id="sWeekly" placeholder="300000" required min="0">
+        </div>
+        <div class="form-group">
+          <label>Oylik narx (so'm) *</label>
+          <input type="number" id="sMonthly" placeholder="1000000" required min="0">
+        </div>
+        <div class="form-group full">
+          <label>Rasm URL (ixtiyoriy)</label>
+          <input type="url" id="sImage" placeholder="https://...">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:20px;">
+        <button type="submit" class="btn btn-filled" style="flex:1;">Saqlash</button>
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Bekor</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let scooters = [];
+
+function toggleSidebar() {
+  document.getElementById('adminSidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+function closeSidebar() {
+  document.getElementById('adminSidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+}
+
+async function loadScooters() {
+  try {
+    const res = await fetch('/api/scooters');
+    scooters = await res.json();
+    const res2 = await fetch('/api/admin/scooters_all');
+    const all = res2.ok ? await res2.json() : scooters;
+    renderScooters(all.length ? all : scooters);
+  } catch(e) { renderScooters(scooters); }
+}
+
+async function loadAllScooters() {
+  try {
+    const res = await fetch('/api/admin/scooters_all');
+    if (res.ok) { scooters = await res.json(); renderScooters(scooters); return; }
+  } catch(e) {}
+  const res2 = await fetch('/api/scooters');
+  scooters = await res2.json();
+  renderScooters(scooters);
+}
+
+function renderScooters(list) {
+  const g = document.getElementById('scooterGrid');
+  if (!list.length) {
+    g.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--gray);">Hali skuter qo\'shilmagan</div>';
+    return;
+  }
+  g.innerHTML = list.map(s => `
+    <div class="scooter-admin-card">
+      <div class="scooter-admin-img">
+        ${s.image_url ? `<img src="${s.image_url}" alt="${s.name}" onerror="this.parentElement.innerHTML='🛴'">` : '🛴'}
+      </div>
+      <div class="scooter-admin-body">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:4px;">
+          <div class="scooter-admin-name">${s.name}</div>
+          <span class="badge ${s.status === 'available' ? 'badge-active' : 'badge-warning'}">${s.status === 'available' ? 'Mavjud' : 'Ijarada'}</span>
+        </div>
+        <div class="scooter-admin-model">${s.model || '—'}</div>
+        <div class="scooter-admin-prices">
+          <div class="price-tag">
+            <div class="price-tag-label">Haftalik</div>
+            <div class="price-tag-val">${fmt(s.price_weekly)}</div>
+          </div>
+          <div class="price-tag">
+            <div class="price-tag-label">Oylik</div>
+            <div class="price-tag-val">${fmt(s.price_monthly)}</div>
+          </div>
+        </div>
+        <div class="scooter-admin-actions">
+          <button class="btn btn-outline btn-sm" style="flex:1;" onclick="editScooter(${s.id})">✏️ Tahrirlash</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteScooter(${s.id})">🗑️</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function fmt(n) { return new Intl.NumberFormat('uz-UZ').format(n); }
+
+function openAddModal() {
+  document.getElementById('modalTitle').textContent = 'Yangi skuter qo\'shish';
+  document.getElementById('scooterId').value = '';
+  document.getElementById('sName').value = '';
+  document.getElementById('sModel').value = '';
+  document.getElementById('sWeekly').value = '';
+  document.getElementById('sMonthly').value = '';
+  document.getElementById('sImage').value = '';
+  document.getElementById('scooterModal').classList.add('open');
+}
+
+function editScooter(id) {
+  const s = scooters.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('modalTitle').textContent = 'Skuterni tahrirlash';
+  document.getElementById('scooterId').value = s.id;
+  document.getElementById('sName').value = s.name;
+  document.getElementById('sModel').value = s.model || '';
+  document.getElementById('sWeekly').value = s.price_weekly;
+  document.getElementById('sMonthly').value = s.price_monthly;
+  document.getElementById('sImage').value = s.image_url || '';
+  document.getElementById('scooterModal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('scooterModal').classList.remove('open'); }
+
+async function submitScooter(e) {
+  e.preventDefault();
+  const id = document.getElementById('scooterId').value;
+  const data = {
+    name: document.getElementById('sName').value,
+    model: document.getElementById('sModel').value,
+    price_weekly: parseFloat(document.getElementById('sWeekly').value),
+    price_monthly: parseFloat(document.getElementById('sMonthly').value),
+    image_url: document.getElementById('sImage').value || null
+  };
+  try {
+    let res;
+    if (id) {
+      res = await fetch(`/api/admin/scooter/${id}/update`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    } else {
+      res = await fetch('/api/admin/scooter/add', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    }
+    if (res.ok) {
+      closeModal();
+      showToast('✅ Saqlandi!', 'success');
+      loadAllScooters();
+    } else { showToast('Xatolik!', 'error'); }
+  } catch(e) { showToast('Xatolik!', 'error'); }
+}
+
+async function deleteScooter(id) {
+  if (!confirm('Bu skuterni o\'chirishni tasdiqlaysizmi?')) return;
+  const res = await fetch(`/api/admin/scooter/${id}/delete`, { method:'DELETE' });
+  if (res.ok) { showToast('O\'chirildi', 'success'); loadAllScooters(); }
+  else showToast('Xatolik!', 'error');
+}
+
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type}`;
+  setTimeout(() => t.classList.add('show'), 10);
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+loadAllScooters();
+</script>
+{% endblock %}

@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Xabar yuborish - Admin{% endblock %}
+
+{% block body %}
+<div class="admin-layout">
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-text">🛴 SkuterAdmin</div>
+      <div class="sidebar-logo-sub">Boshqaruv paneli</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-group-label">Asosiy</div>
+      <a href="/admin" class="sidebar-link"><span class="sidebar-link-icon">📊</span> Dashboard</a>
+      <a href="/admin/rentals" class="sidebar-link"><span class="sidebar-link-icon">📋</span> Ijaralar</a>
+      <div class="sidebar-group-label">Katalog</div>
+      <a href="/admin/scooters" class="sidebar-link"><span class="sidebar-link-icon">🛴</span> Skuterlar</a>
+      <div class="sidebar-group-label">Foydalanuvchilar</div>
+      <a href="/admin/users" class="sidebar-link"><span class="sidebar-link-icon">👥</span> Barcha foydalanuvchilar</a>
+      <div class="sidebar-group-label">Xabarnomalar</div>
+      <a href="/admin/notify" class="sidebar-link active"><span class="sidebar-link-icon">📨</span> Xabar yuborish</a>
+    </nav>
+  </aside>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <div class="topbar-title">📨 Telegram xabarnoma</div>
+      </div>
+    </div>
+
+    <div class="admin-page">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px;">
+        <!-- Barcha foydalanuvchilarga -->
+        <div class="form-card">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">📢 Hammaga xabar</h3>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label>Xabar matni</label>
+            <textarea class="notif-textarea" id="broadcastMsg" placeholder="Barcha foydalanuvchilarga yuboriladigan xabar..."></textarea>
+          </div>
+          <button class="btn btn-filled" onclick="sendBroadcast()">📤 Hammaga yuborish</button>
+        </div>
+
+        <!-- Bitta foydalanuvchiga -->
+        <div class="form-card">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">👤 Bitta foydalanuvchiga</h3>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label>Foydalanuvchi ID</label>
+            <input type="number" id="targetUserId" placeholder="Telegram user_id" value="{{ request.args.get('user_id', '') }}">
+          </div>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label>Xabar matni</label>
+            <textarea class="notif-textarea" id="singleMsg" placeholder="Xabar matni..."></textarea>
+          </div>
+          <button class="btn btn-filled" onclick="sendSingle()">📤 Yuborish</button>
+        </div>
+      </div>
+
+      <!-- Yuborilgan xabarlar tarixi -->
+      <div class="table-card" style="max-width:900px;margin-top:0;">
+        <div class="table-header">
+          <div class="table-title">📋 Yuborilgan xabarlar</div>
+        </div>
+        <div id="notifHistory" style="padding:20px;color:var(--gray);text-align:center;font-size:14px;">
+          Hali xabar yuborilmagan
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const notifHistory = [];
+
+function toggleSidebar() {
+  document.getElementById('adminSidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+function closeSidebar() {
+  document.getElementById('adminSidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+}
+
+async function sendBroadcast() {
+  const msg = document.getElementById('broadcastMsg').value.trim();
+  if (!msg) { showToast('Xabar matnini kiriting!', 'error'); return; }
+  try {
+    const res = await fetch('/api/admin/notify/broadcast', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ message: msg })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✅ ${data.sent} ta foydalanuvchiga yuborildi!`, 'success');
+      document.getElementById('broadcastMsg').value = '';
+      addHistory('Hammaga', msg, data.sent);
+    } else { showToast('Xatolik!', 'error'); }
+  } catch(e) { showToast('Xatolik!', 'error'); }
+}
+
+async function sendSingle() {
+  const userId = document.getElementById('targetUserId').value.trim();
+  const msg = document.getElementById('singleMsg').value.trim();
+  if (!userId || !msg) { showToast('ID va xabar matnini kiriting!', 'error'); return; }
+  try {
+    const res = await fetch('/api/admin/notify/single', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: parseInt(userId), message: msg })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ Xabar yuborildi!', 'success');
+      document.getElementById('singleMsg').value = '';
+      addHistory(`User #${userId}`, msg, 1);
+    } else { showToast('Xatolik! Foydalanuvchi topilmadi.', 'error'); }
+  } catch(e) { showToast('Xatolik!', 'error'); }
+}
+
+function addHistory(to, msg, count) {
+  notifHistory.unshift({ to, msg, count, time: new Date() });
+  const c = document.getElementById('notifHistory');
+  c.innerHTML = notifHistory.map(h => `
+    <div style="display:flex;justify-content:space-between;align-items:start;padding:14px 20px;border-bottom:1px solid var(--border);">
+      <div>
+        <span style="font-weight:600;">${h.to}</span>
+        <span style="color:var(--gray);font-size:13px;"> — ${h.msg.substring(0, 60)}${h.msg.length > 60 ? '...' : ''}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+        <span class="badge badge-active">${h.count} ta</span>
+        <span style="color:var(--gray);font-size:12px;">${h.time.toLocaleTimeString('uz-UZ')}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type}`;
+  setTimeout(() => t.classList.add('show'), 10);
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// Pre-fill name if passed
+const urlName = new URLSearchParams(location.search).get('name');
+if (urlName) {
+  document.getElementById('singleMsg').value = `Salom, ${urlName}! `;
+  document.getElementById('singleMsg').focus();
+}
+</script>
+{% endblock %}

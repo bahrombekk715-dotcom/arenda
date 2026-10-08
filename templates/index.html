@@ -1,31 +1,225 @@
-<!DOCTYPE html>
-<html lang="uz">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skuter Ijarasi</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1>🛴 Skuter Ijarasi</h1>
-            <p class="subtitle">Eng yaxshi skuterlarni tanlang</p>
-        </header>
+{% extends "base.html" %}
+{% block title %}Skuter Ijarasi{% endblock %}
 
-        <div id="scooters-grid" class="scooters-grid">
-            <div class="loading">Yuklanmoqda...</div>
-        </div>
+{% block content %}
+<!-- Header -->
+<div class="app-header">
+  <div class="header-content">
+    <div class="header-title">🛴 Skuter Ijarasi</div>
+    <div class="header-sub">Eng yaxshi skuterlarni ijaraga oling</div>
+  </div>
+</div>
 
-        <div id="rental-modal" class="modal">
-            <div class="modal-content">
-                <span class="close">&times;</span>
-                <div id="modal-body"></div>
-            </div>
-        </div>
+<div class="main-content">
+  <!-- Search -->
+  <div class="search-wrap" style="margin-bottom:16px;">
+    <span class="search-icon">🔍</span>
+    <input type="text" class="search-bar" id="searchInput" placeholder="Skuter qidirish...">
+  </div>
+
+  <!-- Filter chips -->
+  <div class="filter-chips">
+    <div class="chip active" data-filter="all">Barchasi</div>
+    <div class="chip" data-filter="cheap">Arzon (&lt;500K)</div>
+    <div class="chip" data-filter="mid">O'rta (500K–1M)</div>
+    <div class="chip" data-filter="premium">Premium (&gt;1M)</div>
+  </div>
+
+  <!-- Scooters -->
+  <div class="section-title">🛴 Mavjud skuterlar</div>
+  <div class="scooters-grid" id="scootersGrid">
+    <div class="loading-wrap" style="grid-column:1/-1">
+      <div class="spinner"></div>
+      <p style="color:var(--gray);font-size:14px;">Yuklanmoqda...</p>
     </div>
+  </div>
+</div>
 
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-</body>
-</html>
+<!-- Bottom Nav -->
+<nav class="bottom-nav">
+  <a class="nav-item active" href="/">
+    <span class="nav-icon">🏠</span>
+    <span>Bosh sahifa</span>
+  </a>
+  <a class="nav-item" href="/my-rentals{% if user_id %}?user_id={{ user_id }}{% endif %}">
+    <span class="nav-icon">📋</span>
+    <span>Ijaralarm</span>
+  </a>
+  <a class="nav-item" href="#" onclick="openProfile()">
+    <span class="nav-icon">👤</span>
+    <span>Profil</span>
+  </a>
+</nav>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal-sheet" id="modalSheet">
+    <div class="modal-handle"></div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const USER_ID = "{{ user_id or '' }}";
+let allScooters = [];
+let selectedType = 'weekly';
+let currentFilter = 'all';
+
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.expand(); tg.setHeaderColor('#6366f1'); }
+
+async function loadScooters() {
+  try {
+    const res = await fetch('/api/scooters');
+    allScooters = await res.json();
+    renderScooters(allScooters);
+  } catch(e) {
+    document.getElementById('scootersGrid').innerHTML =
+      '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">😕</div><div class="empty-title">Xatolik yuz berdi</div></div>';
+  }
+}
+
+function renderScooters(list) {
+  const grid = document.getElementById('scootersGrid');
+  if (!list.length) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🛴</div><div class="empty-title">Skuter topilmadi</div></div>';
+    return;
+  }
+  grid.innerHTML = list.map(s => `
+    <div class="scooter-card" onclick="openScooter(${s.id})">
+      <div class="card-img-wrap">
+        ${s.image_url ? `<img src="${s.image_url}" alt="${s.name}" onerror="this.parentElement.innerHTML='<span class=card-emoji>🛴</span>'">` : '<span class="card-emoji">🛴</span>'}
+        <div class="card-status-badge ${s.status === 'rented' ? 'rented' : ''}">${s.status === 'rented' ? 'Ijarada' : 'Mavjud'}</div>
+      </div>
+      <div class="card-body">
+        <div class="card-name">${s.name}</div>
+        <div class="card-model">${s.model || ''}</div>
+        <div class="card-price">
+          <span class="price-amount">${formatPrice(s.price_weekly)}</span>
+          <span class="price-period">/hafta</span>
+        </div>
+        ${s.status !== 'rented' ? `<button class="card-btn" onclick="event.stopPropagation();openScooter(${s.id})">Ijaraga olish</button>` : '<div style="margin-top:10px;text-align:center;font-size:12px;color:var(--gray);">Band</div>'}
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterScooters() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  let list = allScooters.filter(s =>
+    s.name.toLowerCase().includes(q) || (s.model || '').toLowerCase().includes(q)
+  );
+  if (currentFilter === 'cheap') list = list.filter(s => s.price_weekly < 500000);
+  else if (currentFilter === 'mid') list = list.filter(s => s.price_weekly >= 500000 && s.price_weekly <= 1000000);
+  else if (currentFilter === 'premium') list = list.filter(s => s.price_weekly > 1000000);
+  renderScooters(list);
+}
+
+document.getElementById('searchInput').addEventListener('input', filterScooters);
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    currentFilter = chip.dataset.filter;
+    filterScooters();
+  });
+});
+
+async function openScooter(id) {
+  const s = allScooters.find(x => x.id === id);
+  if (!s) return;
+  selectedType = 'weekly';
+
+  document.getElementById('modalBody').innerHTML = `
+    <div class="modal-scooter-img">
+      ${s.image_url ? `<img src="${s.image_url}" alt="${s.name}" onerror="this.style.display='none'" style="width:100%;height:100%;object-fit:cover;border-radius:16px;">` : '🛴'}
+    </div>
+    <div class="modal-name">${s.name}</div>
+    <div class="modal-model">Model: ${s.model || '—'}</div>
+
+    ${s.status === 'rented' ? `
+      <div style="background:#fef3c7;border-radius:12px;padding:16px;text-align:center;margin-bottom:20px;">
+        <div style="font-size:24px;margin-bottom:4px;">⚠️</div>
+        <div style="font-weight:600;color:#92400e;">Bu skuter hozir ijarada</div>
+      </div>
+    ` : `
+      <div style="font-size:14px;font-weight:600;color:var(--dark);margin-bottom:10px;">Ijara turini tanlang:</div>
+      <div class="price-row">
+        <div class="price-card selected" id="weeklyCard" onclick="selectType('weekly')">
+          <div class="price-card-label">Haftalik</div>
+          <div class="price-card-amount">${formatPrice(s.price_weekly)}</div>
+          <div class="price-card-period">7 kun</div>
+        </div>
+        <div class="price-card" id="monthlyCard" onclick="selectType('monthly')">
+          <div class="price-card-label">Oylik</div>
+          <div class="price-card-amount">${formatPrice(s.price_monthly)}</div>
+          <div class="price-card-period">30 kun</div>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="rentScooter(${s.id})">
+        🛴 Ijaraga olish
+      </button>
+    `}
+  `;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function selectType(type) {
+  selectedType = type;
+  document.getElementById('weeklyCard').classList.toggle('selected', type === 'weekly');
+  document.getElementById('monthlyCard').classList.toggle('selected', type === 'monthly');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modalOverlay')) {
+    document.getElementById('modalOverlay').classList.remove('open');
+  }
+}
+
+async function rentScooter(scooterId) {
+  if (!USER_ID) { showToast('Iltimos, botdan kiriting', 'error'); return; }
+  const s = allScooters.find(x => x.id === scooterId);
+  const price = selectedType === 'weekly' ? s.price_weekly : s.price_monthly;
+  try {
+    const res = await fetch('/api/rental/create', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ scooter_id: scooterId, rental_type: selectedType, total_price: price })
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('modalOverlay').classList.remove('open');
+      showToast('✅ Muvaffaqiyatli ijaraga olindi!', 'success');
+      loadScooters();
+    } else {
+      showToast('Xatolik yuz berdi', 'error');
+    }
+  } catch(e) {
+    showToast('Xatolik yuz berdi', 'error');
+  }
+}
+
+function openProfile() {
+  showToast('Profil tez orada qo\'shiladi');
+}
+
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type}`;
+  setTimeout(() => t.classList.add('show'), 10);
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function formatPrice(n) {
+  return new Intl.NumberFormat('uz-UZ').format(n) + ' so\'m';
+}
+
+loadScooters();
+</script>
+{% endblock %}

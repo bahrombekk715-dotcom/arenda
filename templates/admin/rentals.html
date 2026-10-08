@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Ijaralar - Admin{% endblock %}
+
+{% block body %}
+<div class="admin-layout">
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-text">🛴 SkuterAdmin</div>
+      <div class="sidebar-logo-sub">Boshqaruv paneli</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-group-label">Asosiy</div>
+      <a href="/admin" class="sidebar-link"><span class="sidebar-link-icon">📊</span> Dashboard</a>
+      <a href="/admin/rentals" class="sidebar-link active"><span class="sidebar-link-icon">📋</span> Ijaralar</a>
+      <div class="sidebar-group-label">Katalog</div>
+      <a href="/admin/scooters" class="sidebar-link"><span class="sidebar-link-icon">🛴</span> Skuterlar</a>
+      <div class="sidebar-group-label">Foydalanuvchilar</div>
+      <a href="/admin/users" class="sidebar-link"><span class="sidebar-link-icon">👥</span> Barcha foydalanuvchilar</a>
+      <div class="sidebar-group-label">Xabarnomalar</div>
+      <a href="/admin/notify" class="sidebar-link"><span class="sidebar-link-icon">📨</span> Xabar yuborish</a>
+    </nav>
+  </aside>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <div class="topbar-title">📋 Ijaralar</div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-outline btn-sm" onclick="loadRentals()">🔄 Yangilash</button>
+      </div>
+    </div>
+
+    <div class="admin-page">
+      <div class="table-card">
+        <div class="table-header">
+          <div class="table-title">Faol ijaralar</div>
+          <div style="font-size:13px;color:var(--gray);">Avtomatik yangilanadi</div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Foydalanuvchi</th>
+                <th>Skuter</th>
+                <th>Tur</th>
+                <th>Narx</th>
+                <th>Boshlanish</th>
+                <th>Tugash</th>
+                <th>Qolgan</th>
+                <th>Amal</th>
+              </tr>
+            </thead>
+            <tbody id="rentalsBody">
+              <tr><td colspan="9" style="text-align:center;padding:30px;">
+                <div class="spinner" style="margin:0 auto 8px;"></div> Yuklanmoqda...
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleSidebar() {
+  document.getElementById('adminSidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+function closeSidebar() {
+  document.getElementById('adminSidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+}
+
+async function loadRentals() {
+  try {
+    const res = await fetch('/api/admin/rentals');
+    const rentals = await res.json();
+    const tbody = document.getElementById('rentalsBody');
+    if (!rentals.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--gray);">Faol ijaralar yo\'q</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rentals.map(r => {
+      const end = new Date(r.end_date);
+      const daysLeft = Math.ceil((end - new Date()) / 86400000);
+      const typeLabel = r.rental_type === 'weekly' ? 'Haftalik' : 'Oylik';
+      const daysColor = daysLeft <= 1 ? 'var(--danger)' : daysLeft <= 3 ? 'var(--warning)' : 'var(--success)';
+      return `<tr>
+        <td style="color:var(--gray);font-size:12px;">#${r.id}</td>
+        <td>
+          <div class="user-cell">
+            <div class="avatar">${(r.full_name || 'U')[0].toUpperCase()}</div>
+            <div class="user-cell-info">
+              <div class="user-cell-name">${r.full_name || '—'}</div>
+              <div class="user-cell-username">@${r.username || '—'}</div>
+            </div>
+          </div>
+        </td>
+        <td><strong>${r.scooter_name}</strong><br><span style="color:var(--gray);font-size:12px;">${r.model || ''}</span></td>
+        <td><span class="badge badge-active">${typeLabel}</span></td>
+        <td><strong>${new Intl.NumberFormat('uz-UZ').format(r.total_price)}</strong> <span style="color:var(--gray);font-size:11px;">so'm</span></td>
+        <td style="color:var(--gray);font-size:13px;">${fmtDate(r.start_date)}</td>
+        <td style="color:var(--gray);font-size:13px;">${fmtDate(r.end_date)}</td>
+        <td style="font-weight:600;color:${daysColor};">${daysLeft > 0 ? daysLeft + ' kun' : 'Tugagan'}</td>
+        <td>
+          <button class="btn btn-success btn-sm" onclick="completeRental(${r.id})">✅ Tugatish</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) {}
+}
+
+async function completeRental(id) {
+  if (!confirm('Bu ijarani tugatishni tasdiqlaysizmi?')) return;
+  const res = await fetch(`/api/admin/rental/${id}/complete`, { method:'POST' });
+  if (res.ok) { showToast('✅ Ijara tugallandi!', 'success'); loadRentals(); }
+  else showToast('Xatolik!', 'error');
+}
+
+function fmtDate(d) {
+  return new Date(d).toLocaleDateString('uz-UZ', {day:'2-digit',month:'2-digit',year:'2-digit'});
+}
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type}`;
+  setTimeout(() => t.classList.add('show'), 10);
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+loadRentals();
+setInterval(loadRentals, 30000);
+</script>
+{% endblock %}
