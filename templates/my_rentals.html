@@ -1,134 +1,372 @@
-{% extends "base.html" %}
-{% block title %}Mening Ijaralarm{% endblock %}
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>📋 Mening Ijaralarim</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-{% block content %}
-<div class="app-header">
-  <div class="header-content">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <a href="/" style="color:rgba(255,255,255,0.7);font-size:20px;text-decoration:none;">←</a>
-      <div>
-        <div class="header-title" style="font-size:20px;">📋 Mening Ijaralarm</div>
-        <div class="header-sub">Faol va tugallangan ijaralar</div>
-      </div>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding-bottom: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #16213e 0%, #0f3460 100%);
+            padding: 25px 20px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 2px solid rgba(0, 212, 255, 0.3);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+            background: linear-gradient(135deg, #00d4ff 0%, #00ff88 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 800;
+        }
+
+        .header p {
+            color: #b3b3b3;
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .rental-card {
+            background: linear-gradient(135deg, #1e1e2f 0%, #2a2a3e 100%);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .rental-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+        }
+
+        .rental-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .rental-title {
+            font-size: 20px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #00d4ff 0%, #00ff88 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .rental-model {
+            color: #888;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-active {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .status-completed {
+            background: rgba(136, 136, 136, 0.2);
+            color: #888;
+            border: 1px solid rgba(136, 136, 136, 0.3);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .info-item {
+            background: rgba(0, 212, 255, 0.05);
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 212, 255, 0.1);
+        }
+
+        .info-label {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            color: #00d4ff;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .payment-section {
+            background: rgba(0, 255, 136, 0.05);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 15px;
+            border: 1px solid rgba(0, 255, 136, 0.1);
+        }
+
+        .payment-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #00ff88;
+        }
+
+        .payment-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .payment-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .payment-label {
+            color: #888;
+        }
+
+        .payment-value {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .payment-history {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .payment-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 13px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .empty-state-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .empty-state-text {
+            color: #666;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .empty-state-sub {
+            color: #444;
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📋 Mening Ijaralarim</h1>
+        <p>Faol va tugallangan ijaralar</p>
     </div>
-  </div>
-</div>
 
-<div class="main-content">
-  <div id="rentalsContainer">
-    <div class="loading-wrap">
-      <div class="spinner"></div>
-      <p style="color:var(--gray);font-size:14px;">Yuklanmoqda...</p>
+    <div class="container">
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 15px;">Yuklanmoqda...</p>
+        </div>
+        <div id="rentals-container" style="display: none;"></div>
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">📋</div>
+            <div class="empty-state-text">Ijaralar yo'q</div>
+            <div class="empty-state-sub">Hali birorta skuter ijaraga olmadingiz</div>
+        </div>
     </div>
-  </div>
-</div>
 
-<nav class="bottom-nav">
-  <a class="nav-item" href="/{% if user_id %}?user_id={{ user_id }}{% endif %}">
-    <span class="nav-icon">🏠</span>
-    <span>Bosh sahifa</span>
-  </a>
-  <a class="nav-item active" href="/my-rentals{% if user_id %}?user_id={{ user_id }}{% endif %}">
-    <span class="nav-icon">📋</span>
-    <span>Ijaralarm</span>
-  </a>
-  <a class="nav-item" href="/profile{% if user_id %}?user_id={{ user_id }}{% endif %}">
-    <span class="nav-icon">👤</span>
-    <span>Profil</span>
-  </a>
-</nav>
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
 
-<div class="toast" id="toast"></div>
-{% endblock %}
+        const userId = {{ user_id or 'null' }};
 
-{% block extra_js %}
-<script>
-const USER_ID = "{{ user_id or '' }}";
-const tg = window.Telegram?.WebApp;
-if (tg) { tg.expand(); tg.setHeaderColor('#6366f1'); }
+        async function loadRentals() {
+            try {
+                const response = await fetch('/api/my-rentals?user_id=' + userId);
+                const rentals = await response.json();
 
-async function loadRentals() {
-  const uid = USER_ID || window.CURRENT_USER_ID;
-  try {
-    const url = uid ? `/api/my-rentals?user_id=${uid}` : '/api/my-rentals';
-    const res = await fetch(url);
-    const rentals = await res.json();
-    renderRentals(rentals);
-  } catch(e) {
-    document.getElementById('rentalsContainer').innerHTML =
-      '<div class="empty-state"><div class="empty-icon">😕</div><div class="empty-title">Xatolik yuz berdi</div></div>';
-  }
-}
+                document.getElementById('loading').style.display = 'none';
 
-function renderRentals(rentals) {
-  const c = document.getElementById('rentalsContainer');
-  if (!rentals.length) {
-    c.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">🛴</div>
-        <div class="empty-title">Ijaralar yo'q</div>
-        <p style="color:var(--gray);font-size:14px;margin-top:8px;">Hali birorta skuter ijaraga olmadingiz</p>
-        <a href="/" style="display:inline-block;margin-top:16px;padding:12px 24px;background:var(--primary);color:#fff;border-radius:12px;text-decoration:none;font-weight:600;">🛴 Skuter tanlash</a>
-      </div>`;
-    return;
-  }
+                if (rentals.length === 0) {
+                    document.getElementById('empty-state').style.display = 'block';
+                    return;
+                }
 
-  c.innerHTML = rentals.map(r => {
-    const end = new Date(r.end_date);
-    const now = new Date();
-    const daysLeft = Math.ceil((end - now) / 86400000);
-    const typeText = r.rental_type === 'weekly' ? 'Haftalik' : 'Oylik';
-    const urgentClass = daysLeft <= 3 ? 'badge-warning' : 'badge-active';
+                const container = document.getElementById('rentals-container');
+                container.style.display = 'block';
 
-    return `
-      <div class="rental-card">
-        <div class="rental-header">
-          <div class="rental-name">🛴 ${r.scooter_name}</div>
-          <span class="badge ${daysLeft > 0 ? urgentClass : 'badge-completed'}">${daysLeft > 0 ? 'Faol' : 'Tugagan'}</span>
-        </div>
-        <div class="rental-info">
-          <div class="info-item">
-            <strong>${r.model || '—'}</strong>
-            Model
-          </div>
-          <div class="info-item">
-            <strong>${typeText}</strong>
-            Ijara turi
-          </div>
-          <div class="info-item">
-            <strong>${formatDate(r.start_date)}</strong>
-            Boshlanish
-          </div>
-          <div class="info-item">
-            <strong>${formatDate(r.end_date)}</strong>
-            Tugash
-          </div>
-          <div class="info-item">
-            <strong>${formatPrice(r.total_price)}</strong>
-            Umumiy narx
-          </div>
-          <div class="info-item">
-            <strong style="color:${daysLeft <= 3 ? 'var(--warning)' : 'var(--success)'}">${daysLeft > 0 ? daysLeft + ' kun' : 'Tugagan'}</strong>
-            Qolgan vaqt
-          </div>
-        </div>
-        ${daysLeft <= 3 && daysLeft > 0 ? `
-          <div style="margin-top:12px;background:#fef3c7;border-radius:10px;padding:10px 14px;font-size:13px;color:#92400e;display:flex;align-items:center;gap:8px;">
-            ⚠️ Ijara muddati yaqinlashmoqda!
-          </div>
-        ` : ''}
-      </div>
-    `;
-  }).join('');
-}
+                rentals.forEach(rental => {
+                    const card = createRentalCard(rental);
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Error loading rentals:', error);
+                document.getElementById('loading').innerHTML = '<p style="color: #ff4444;">❌ Yuklanishda xatolik</p>';
+            }
+        }
 
-function formatDate(d) {
-  return new Date(d).toLocaleDateString('uz-UZ', {day:'2-digit',month:'2-digit',year:'numeric'});
-}
-function formatPrice(n) {
-  return new Intl.NumberFormat('uz-UZ').format(n) + ' so\'m';
-}
+        function createRentalCard(rental) {
+            const card = document.createElement('div');
+            card.className = 'rental-card';
 
-loadRentals();
-</script>
-{% endblock %}
+            const statusClass = rental.status === 'active' ? 'status-active' : 'status-completed';
+            const statusText = rental.status === 'active' ? '✅ Faol' : '✓ Tugallangan';
+
+            const rentalType = rental.rental_type === 'weekly' ? '📅 Haftalik' : '📆 Oylik';
+
+            // To'lovlar historiyasini yaratish
+            let paymentsHtml = '';
+            if (rental.payments && rental.payments.length > 0) {
+                paymentsHtml = `
+                    <div class="payment-history">
+                        <div style="font-size: 12px; color: #888; margin-bottom: 8px;">📝 To'lovlar tarixi:</div>
+                        ${rental.payments.map(p => `
+                            <div class="payment-item">
+                                <span style="color: #888;">${formatDate(p.payment_date)}</span>
+                                <span style="color: #00ff88; font-weight: 600;">${formatPrice(p.amount)} so'm</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            card.innerHTML = `
+                <div class="rental-header">
+                    <div>
+                        <div class="rental-title">🛴 ${rental.scooter_name}</div>
+                        <div class="rental-model">Model: ${rental.model || '—'}</div>
+                    </div>
+                    <div class="status-badge ${statusClass}">${statusText}</div>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Ijara turi</div>
+                        <div class="info-value">${rentalType}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Umumiy narx</div>
+                        <div class="info-value">${formatPrice(rental.total_price)} so'm</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Boshlanish</div>
+                        <div class="info-value">${formatDate(rental.start_date)}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Tugash</div>
+                        <div class="info-value">${formatDate(rental.end_date)}</div>
+                    </div>
+                </div>
+
+                <div class="payment-section">
+                    <div class="payment-title">💰 To'lovlar</div>
+                    <div class="payment-row">
+                        <span class="payment-label">To'langan:</span>
+                        <span class="payment-value" style="color: #00ff88;">${formatPrice(rental.total_paid || 0)} so'm</span>
+                    </div>
+                    <div class="payment-row">
+                        <span class="payment-label">Qoldiq:</span>
+                        <span class="payment-value" style="color: ${(rental.remaining || 0) > 0 ? '#ff4444' : '#00ff88'};">${formatPrice(rental.remaining || 0)} so'm</span>
+                    </div>
+                    ${paymentsHtml}
+                </div>
+            `;
+
+            return card;
+        }
+
+        function formatPrice(price) {
+            return new Intl.NumberFormat('uz-UZ').format(price);
+        }
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('uz-UZ', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            });
+        }
+
+        // Load rentals on page load
+        loadRentals();
+    </script>
+</body>
+</html>

@@ -202,7 +202,8 @@ async def get_user_rentals(user_id: int, active_only: bool = False):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         query = '''
-            SELECT r.*, s.name as scooter_name, s.model, s.image_url
+            SELECT r.*, s.name as scooter_name, s.model, s.image_url,
+                   s.price_weekly, s.price_monthly
             FROM rentals r
             JOIN scooters s ON r.scooter_id = s.id
             WHERE r.user_id = ?

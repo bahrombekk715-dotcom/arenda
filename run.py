@@ -8,27 +8,26 @@ from dotenv import load_dotenv
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def run_webapp(bot_instance):
-    import webapp
+def run_webapp():
+    """Flask web app ni alohida thread'da ishga tushirish"""
     from webapp import app
-    webapp.set_bot(bot_instance)
     port = int(os.getenv('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
 async def main():
     load_dotenv()
+
+    # Database'ni ishga tushirish
     from database import init_db
     await init_db()
+    logger.info("✅ Database ishga tushdi")
 
+    # Bot'ni sozlash
     from bot import bot, dp, router, WEBAPP_URL
     dp.include_router(router)
 
-    from reminder import ReminderService
-    reminder = ReminderService(bot)
-    reminder.start()
-
-    # Start webapp thread with bot reference
-    webapp_thread = threading.Thread(target=run_webapp, args=(bot,), daemon=True)
+    # Web app'ni alohida thread'da ishga tushirish
+    webapp_thread = threading.Thread(target=run_webapp, daemon=True)
     webapp_thread.start()
     logger.info(f"✅ Web app ishga tushdi: {WEBAPP_URL}")
 
