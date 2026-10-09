@@ -74,6 +74,11 @@
             background: linear-gradient(90deg, #00d4ff, #00ff88);
         }
 
+        .rental-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 212, 255, 0.3);
+        }
+
         .rental-header {
             display: flex;
             justify-content: space-between;
@@ -82,7 +87,7 @@
         }
 
         .rental-title {
-            font-size: 20px;
+            font-size: 22px;
             font-weight: bold;
             background: linear-gradient(135deg, #00d4ff 0%, #00ff88 100%);
             -webkit-background-clip: text;
@@ -90,9 +95,9 @@
             background-clip: text;
         }
 
-        .rental-model {
+        .rental-date {
             color: #888;
-            font-size: 14px;
+            font-size: 13px;
             margin-top: 5px;
         }
 
@@ -101,38 +106,53 @@
             border-radius: 20px;
             font-size: 12px;
             font-weight: bold;
-        }
-
-        .status-active {
             background: rgba(0, 255, 136, 0.2);
             color: #00ff88;
             border: 1px solid rgba(0, 255, 136, 0.3);
         }
 
-        .status-completed {
-            background: rgba(136, 136, 136, 0.2);
-            color: #888;
-            border: 1px solid rgba(136, 136, 136, 0.3);
-        }
-
-        .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
+        .scooter-image {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            border-radius: 15px;
             margin-bottom: 15px;
+            background: linear-gradient(135deg, #2c2c3e 0%, #3a3a4e 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
         }
 
-        .info-item {
+        .scooter-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 15px;
+        }
+
+        .info-section {
             background: rgba(0, 212, 255, 0.05);
-            padding: 12px;
             border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
             border: 1px solid rgba(0, 212, 255, 0.1);
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .info-row:last-child {
+            margin-bottom: 0;
         }
 
         .info-label {
             color: #888;
-            font-size: 12px;
-            margin-bottom: 5px;
+            font-size: 14px;
         }
 
         .info-value {
@@ -152,33 +172,39 @@
         .payment-title {
             font-size: 14px;
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             color: #00ff88;
         }
 
-        .payment-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 14px;
+        .payment-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 12px;
         }
 
-        .payment-row:last-child {
-            margin-bottom: 0;
+        .payment-stat {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            border-radius: 10px;
+            text-align: center;
         }
 
-        .payment-label {
+        .payment-stat-label {
             color: #888;
+            font-size: 12px;
+            margin-bottom: 5px;
         }
 
-        .payment-value {
+        .payment-stat-value {
             color: #fff;
-            font-weight: 600;
+            font-size: 18px;
+            font-weight: bold;
         }
 
         .payment-history {
-            margin-top: 10px;
-            padding-top: 10px;
+            margin-top: 12px;
+            padding-top: 12px;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
@@ -191,7 +217,7 @@
 
         .empty-state {
             text-align: center;
-            padding: 60px 20px;
+            padding: 80px 20px;
         }
 
         .empty-state-icon {
@@ -235,7 +261,7 @@
 <body>
     <div class="header">
         <h1>📋 Mening Ijaralarim</h1>
-        <p>Faol va tugallangan ijaralar</p>
+        <p>Skuterlar va to'lovlar tarixi</p>
     </div>
 
     <div class="container">
@@ -245,9 +271,9 @@
         </div>
         <div id="rentals-container" style="display: none;"></div>
         <div id="empty-state" class="empty-state" style="display: none;">
-            <div class="empty-state-icon">📋</div>
+            <div class="empty-state-icon">🛴</div>
             <div class="empty-state-text">Ijaralar yo'q</div>
-            <div class="empty-state-sub">Hali birorta skuter ijaraga olmadingiz</div>
+            <div class="empty-state-sub">Sizda hali ijara yo'q</div>
         </div>
     </div>
 
@@ -260,11 +286,11 @@
         async function loadRentals() {
             try {
                 const response = await fetch('/api/my-rentals?user_id=' + userId);
-                const rentals = await response.json();
+                const data = await response.json();
 
                 document.getElementById('loading').style.display = 'none';
 
-                if (rentals.length === 0) {
+                if (data.rentals.length === 0) {
                     document.getElementById('empty-state').style.display = 'block';
                     return;
                 }
@@ -272,7 +298,7 @@
                 const container = document.getElementById('rentals-container');
                 container.style.display = 'block';
 
-                rentals.forEach(rental => {
+                data.rentals.forEach(rental => {
                     const card = createRentalCard(rental);
                     container.appendChild(card);
                 });
@@ -286,15 +312,14 @@
             const card = document.createElement('div');
             card.className = 'rental-card';
 
-            const statusClass = rental.status === 'active' ? 'status-active' : 'status-completed';
-            const statusText = rental.status === 'active' ? '✅ Faol' : '✓ Tugallangan';
+            const imageHtml = rental.scooter_image
+                ? `<img src="${rental.scooter_image}" alt="${rental.scooter_name}">`
+                : '🛴';
 
-            const rentalType = rental.rental_type === 'weekly' ? '📅 Haftalik' : '📆 Oylik';
-
-            // To'lovlar historiyasini yaratish
-            let paymentsHtml = '';
+            // To'lovlar tarixi
+            let paymentsHistoryHtml = '';
             if (rental.payments && rental.payments.length > 0) {
-                paymentsHtml = `
+                paymentsHistoryHtml = `
                     <div class="payment-history">
                         <div style="font-size: 12px; color: #888; margin-bottom: 8px;">📝 To'lovlar tarixi:</div>
                         ${rental.payments.map(p => `
@@ -311,41 +336,33 @@
                 <div class="rental-header">
                     <div>
                         <div class="rental-title">🛴 ${rental.scooter_name}</div>
-                        <div class="rental-model">Model: ${rental.model || '—'}</div>
+                        <div class="rental-date">Boshlangan: ${formatDate(rental.start_date)}</div>
                     </div>
-                    <div class="status-badge ${statusClass}">${statusText}</div>
+                    <div class="status-badge">✅ Faol</div>
                 </div>
 
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-label">Ijara turi</div>
-                        <div class="info-value">${rentalType}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Umumiy narx</div>
-                        <div class="info-value">${formatPrice(rental.total_price)} so'm</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Boshlanish</div>
-                        <div class="info-value">${formatDate(rental.start_date)}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Tugash</div>
-                        <div class="info-value">${formatDate(rental.end_date)}</div>
+                <div class="scooter-image">${imageHtml}</div>
+
+                <div class="info-section">
+                    <div class="info-row">
+                        <span class="info-label">📅 Haftalik to'lov:</span>
+                        <span class="info-value">${formatPrice(rental.weekly_payment)} so'm</span>
                     </div>
                 </div>
 
                 <div class="payment-section">
                     <div class="payment-title">💰 To'lovlar</div>
-                    <div class="payment-row">
-                        <span class="payment-label">To'langan:</span>
-                        <span class="payment-value" style="color: #00ff88;">${formatPrice(rental.total_paid || 0)} so'm</span>
+                    <div class="payment-stats">
+                        <div class="payment-stat">
+                            <div class="payment-stat-label">Jami to'langan</div>
+                            <div class="payment-stat-value" style="color: #00ff88;">${formatPrice(rental.total_paid || 0)}</div>
+                        </div>
+                        <div class="payment-stat">
+                            <div class="payment-stat-label">To'lovlar soni</div>
+                            <div class="payment-stat-value" style="color: #00d4ff;">${rental.payments ? rental.payments.length : 0}</div>
+                        </div>
                     </div>
-                    <div class="payment-row">
-                        <span class="payment-label">Qoldiq:</span>
-                        <span class="payment-value" style="color: ${(rental.remaining || 0) > 0 ? '#ff4444' : '#00ff88'};">${formatPrice(rental.remaining || 0)} so'm</span>
-                    </div>
-                    ${paymentsHtml}
+                    ${paymentsHistoryHtml}
                 </div>
             `;
 
@@ -365,7 +382,6 @@
             });
         }
 
-        // Load rentals on page load
         loadRentals();
     </script>
 </body>

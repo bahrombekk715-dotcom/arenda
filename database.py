@@ -19,42 +19,28 @@ async def init_db():
             )
         ''')
 
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS scooters (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                model TEXT,
-                price_weekly REAL,
-                price_monthly REAL,
-                status TEXT DEFAULT 'available',
-                image_url TEXT
-            )
-        ''')
+        # Scooters table o'chirildi - har safar admin nom yozadi
 
         await db.execute('''
             CREATE TABLE IF NOT EXISTS rentals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
-                scooter_id INTEGER,
-                rental_type TEXT,
+                scooter_name TEXT NOT NULL,
+                weekly_payment REAL,
                 start_date TEXT,
-                end_date TEXT,
-                total_price REAL,
                 status TEXT DEFAULT 'active',
-                FOREIGN KEY (user_id) REFERENCES users (user_id),
-                FOREIGN KEY (scooter_id) REFERENCES scooters (id)
+                scooter_image TEXT,
+                FOREIGN KEY (user_id) REFERENCES users (user_id)
             )
         ''')
 
         await db.execute('''
             CREATE TABLE IF NOT EXISTS documents (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
                 rental_id INTEGER,
-                doc_type TEXT,
-                file_id TEXT,
+                passport_image TEXT,
+                video_file TEXT,
                 upload_date TEXT,
-                FOREIGN KEY (user_id) REFERENCES users (user_id),
                 FOREIGN KEY (rental_id) REFERENCES rentals (id)
             )
         ''')
@@ -65,8 +51,6 @@ async def init_db():
                 rental_id INTEGER,
                 amount REAL,
                 payment_date TEXT,
-                next_payment_date TEXT,
-                status TEXT DEFAULT 'pending',
                 FOREIGN KEY (rental_id) REFERENCES rentals (id)
             )
         ''')
@@ -146,111 +130,87 @@ async def get_user(user_id: int):
         async with db.execute('SELECT * FROM users WHERE user_id = ?', (user_id,)) as cursor:
             return await cursor.fetchone()
 
-async def add_scooter(name: str, model: str, price_weekly: float, price_monthly: float, image_url: str = None):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute('''
-            INSERT INTO scooters (name, model, price_weekly, price_monthly, image_url)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (name, model, price_weekly, price_monthly, image_url))
-        await db.commit()
-        return cursor.lastrowid
-
-async def get_all_scooters():
+async def get_user_by_phone(phone: str):
+    """Telefon raqam bo'yicha user qidirish"""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute('SELECT * FROM scooters WHERE status = "available"') as cursor:
-            return await cursor.fetchall()
-
-async def get_all_scooters_admin():
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute('SELECT * FROM scooters ORDER BY id DESC') as cursor:
-            return await cursor.fetchall()
-
-async def get_scooter(scooter_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute('SELECT * FROM scooters WHERE id = ?', (scooter_id,)) as cursor:
+        async with db.execute('SELECT * FROM users WHERE phone = ?', (phone,)) as cursor:
             return await cursor.fetchone()
 
-async def create_rental(user_id: int, scooter_id: int, rental_type: str, total_price: float):
+async def create_rental(user_id: int, scooter_name: str, weekly_payment: float,
+                       scooter_image: str = None, passport_image: str = None,
+                       video_file: str = None):
+    """Admin yangi ijara yaratadi"""
     async with aiosqlite.connect(DB_PATH) as db:
         start_date = datetime.now()
-        if rental_type == 'weekly':
-            end_date = start_date + timedelta(days=7)
-        else:
-            end_date = start_date + timedelta(days=30)
 
+        # Ijarani yaratish
         cursor = await db.execute('''
-            INSERT INTO rentals (user_id, scooter_id, rental_type, start_date, end_date, total_price)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (user_id, scooter_id, rental_type, start_date.isoformat(), end_date.isoformat(), total_price))
-
-        await db.execute('UPDATE scooters SET status = "rented" WHERE id = ?', (scooter_id,))
-        await db.commit()
-        return cursor.lastrowid
-
-async def add_document(user_id: int, rental_id: int, doc_type: str, file_id: str):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute('''
-            INSERT INTO documents (user_id, rental_id, doc_type, file_id, upload_date)
+            INSERT INTO rentals (user_id, scooter_name, weekly_payment, start_date, scooter_image)
             VALUES (?, ?, ?, ?, ?)
-        ''', (user_id, rental_id, doc_type, file_id, datetime.now().isoformat()))
-        await db.commit()
+        ''', (user_id, scooter_name, weekly_payment, start_date.isoformat(), scooter_image))
 
-async def get_user_rentals(user_id: int, active_only: bool = False):
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        query = '''
-            SELECT r.*, s.name as scooter_name, s.model, s.image_url,
-                   s.price_weekly, s.price_monthly
-            FROM rentals r
-            JOIN scooters s ON r.scooter_id = s.id
-            WHERE r.user_id = ?
-        '''
-        if active_only:
-            query += ' AND r.status = "active"'
-        query += ' ORDER BY r.start_date DESC'
-        async with db.execute(query, (user_id,)) as cursor:
-            return await cursor.fetchall()
+        rental_id = cursor.lastrowid
+
+        # Hujjatlarni saqlash
+        if passport_image or video_file:
+            await db.execute('''
+                INSERT INTO documents (rental_id, passport_image, video_file, upload_date)
+                VALUES (?, ?, ?, ?)
+            ''', (rental_id, passport_image, video_file, datetime.now().isoformat()))
+
+        await db.commit()
+        return rental_id
 
 async def get_all_rentals():
+    """Barcha ijaralarni olish (admin uchun)"""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute('''
-            SELECT r.*, s.name as scooter_name, s.model, u.full_name, u.username
+            SELECT r.*, u.full_name, u.phone, u.username
             FROM rentals r
-            JOIN scooters s ON r.scooter_id = s.id
             JOIN users u ON r.user_id = u.user_id
-            WHERE r.status = "active"
-            ORDER BY r.start_date DESC
+            ORDER BY r.id DESC
         ''') as cursor:
             return await cursor.fetchall()
 
+async def get_rental_by_id(rental_id: int):
+    """Bitta ijarani olish"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute('SELECT * FROM rentals WHERE id = ?', (rental_id,)) as cursor:
+            return await cursor.fetchone()
+
 async def get_rental_documents(rental_id: int):
+    """Ijara hujjatlarini olish"""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute('SELECT * FROM documents WHERE rental_id = ?', (rental_id,)) as cursor:
+            return await cursor.fetchone()
+
+async def get_user_rentals(user_id: int, active_only: bool = False):
+    """Userning ijaralarini olish"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        query = 'SELECT * FROM rentals WHERE user_id = ?'
+        if active_only:
+            query += ' AND status = "active"'
+        query += ' ORDER BY start_date DESC'
+        async with db.execute(query, (user_id,)) as cursor:
             return await cursor.fetchall()
 
 async def add_payment(rental_id: int, amount: float):
+    """To'lov qo'shish"""
     async with aiosqlite.connect(DB_PATH) as db:
         payment_date = datetime.now()
-        async with db.execute('SELECT rental_type FROM rentals WHERE id = ?', (rental_id,)) as cursor:
-            rental = await cursor.fetchone()
-            if rental:
-                if rental[0] == 'weekly':
-                    next_payment = payment_date + timedelta(days=7)
-                else:
-                    next_payment = payment_date + timedelta(days=30)
-
-                await db.execute('''
-                    INSERT INTO payments (rental_id, amount, payment_date, next_payment_date, status)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (rental_id, amount, payment_date.isoformat(), next_payment.isoformat(), 'paid'))
-                await db.commit()
+        await db.execute('''
+            INSERT INTO payments (rental_id, amount, payment_date)
+            VALUES (?, ?, ?)
+        ''', (rental_id, amount, payment_date.isoformat()))
+        await db.commit()
 
 async def get_rental_payments(rental_id: int):
+    """Ijara to'lovlarini olish"""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
@@ -258,6 +218,12 @@ async def get_rental_payments(rental_id: int):
             (rental_id,)
         ) as cursor:
             return await cursor.fetchall()
+
+async def update_weekly_payment(rental_id: int, new_amount: float):
+    """Haftalik to'lovni o'zgartirish"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute('UPDATE rentals SET weekly_payment = ? WHERE id = ?', (new_amount, rental_id))
+        await db.commit()
 
 async def get_stats():
     async with aiosqlite.connect(DB_PATH) as db:
