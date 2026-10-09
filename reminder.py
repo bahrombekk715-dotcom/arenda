@@ -35,38 +35,35 @@ class ReminderService:
     async def check_payment_reminders(self):
         """Har kuni ertalab to'lov eslatmalarini yuboradi"""
         try:
-            rentals = await get_all_rentals()
-            today = datetime.now()
+            from database import get_all_active_rentals_with_info
+
+            rentals = await get_all_active_rentals_with_info()
+            logger.info(f"To'lov eslatmalari tekshirilmoqda: {len(rentals)} ta aktiv ijara")
 
             for rental in rentals:
-                payments = await get_rental_payments(rental['id'])
+                # Kechikkan to'lovlar uchun har kuni xabar
+                if rental.get('overdue_days', 0) > 0:
+                    await self._send_overdue_notice(
+                        rental['user_id'],
+                        rental['scooter_name'],
+                        rental['overdue_days'],
+                        rental['debt_amount']
+                    )
+                    logger.info(f"Kechikish xabari yuborildi: user_id={rental['user_id']}, kunlar={rental['overdue_days']}")
 
-                if payments:
-                    last_payment = payments[0]
-                    next_payment_date = datetime.fromisoformat(last_payment['next_payment_date'])
-                    days_left = (next_payment_date - today).days
+                # Yaqinlashayotgan to'lov sanasi uchun ogohlantirish
+                elif rental.get('status') == 'warning':
+                    paid_until = datetime.fromisoformat(rental['paid_until'])
+                    days_left = (paid_until - datetime.now()).days
 
-                    if days_left == 3:
+                    if days_left <= 3 and days_left > 0:
                         await self._send_payment_reminder(
                             rental['user_id'],
                             rental['scooter_name'],
                             days_left,
-                            rental['rental_type']
+                            rental['weekly_payment']
                         )
-                    elif days_left == 1:
-                        await self._send_payment_reminder(
-                            rental['user_id'],
-                            rental['scooter_name'],
-                            days_left,
-                            rental['rental_type'],
-                            urgent=True
-                        )
-                    elif days_left <= 0:
-                        await self._send_overdue_notice(
-                            rental['user_id'],
-                            rental['scooter_name'],
-                            abs(days_left)
-                        )
+                        logger.info(f"Eslatma yuborildi: user_id={rental['user_id']}, qolgan kunlar={days_left}")
 
         except Exception as e:
             logger.error(f"To'lov eslatmalarida xatolik: {e}")
@@ -98,21 +95,20 @@ class ReminderService:
         except Exception as e:
             logger.error(f"Ijara tugashi eslatmasida xatolik: {e}")
 
-    async def _send_payment_reminder(self, user_id: int, scooter_name: str, days_left: int, rental_type: str, urgent: bool = False):
+    async def _send_payment_reminder(self, user_id: int, scooter_name: str, days_left: int, weekly_payment: float):
         """To'lov eslatmasini yuboradi"""
         try:
-            icon = "⚠️" if urgent else "🔔"
-            rental_text = "haftalik" if rental_type == "weekly" else "oylik"
+            icon = "⚠️" if days_left <= 1 else "🔔"
 
             text = (
                 f"{icon} <b>To'lov eslatmasi</b>\n\n"
                 f"🛴 Skuter: {scooter_name}\n"
-                f"📅 To'lov turi: {rental_text}\n"
+                f"💵 Haftalik to'lov: {weekly_payment:,.0f} so'm\n"
                 f"⏰ Qolgan kunlar: {days_left} kun\n\n"
             )
 
-            if urgent:
-                text += "❗️ To'lovni ertaga amalga oshiring!"
+            if days_left <= 1:
+                text += "❗️ To'lovni tezda amalga oshiring!"
             else:
                 text += "💡 To'lovni vaqtida amalga oshiring."
 
@@ -121,14 +117,16 @@ class ReminderService:
         except Exception as e:
             logger.error(f"Eslatma yuborishda xatolik (user {user_id}): {e}")
 
-    async def _send_overdue_notice(self, user_id: int, scooter_name: str, days_overdue: int):
-        """To'lov kechikishi haqida xabar"""
+    async def _send_overdue_notice(self, user_id: int, scooter_name: str, days_overdue: int, debt_amount: float):
+        """To'lov kechikishi haqida xabar (har kuni yuboriladi)"""
         try:
             text = (
                 f"🚨 <b>To'lov kechikdi!</b>\n\n"
                 f"🛴 Skuter: {scooter_name}\n"
-                f"⏰ Kechikkan kunlar: {days_overdue} kun\n\n"
-                f"📞 Iltimos, tezda to'lovni amalga oshiring yoki admin bilan bog'laning."
+                f"⏰ Kechikkan kunlar: {days_overdue} kun\n"
+                f"💰 Qarz: {debt_amount:,.0f} so'm\n\n"
+                f"📞 Iltimos, tezda to'lovni amalga oshiring yoki admin bilan bog'laning.\n\n"
+                f"ℹ️ Har kechikkan kun uchun qarz hisoblanib boradi."
             )
 
             await self.bot.send_message(user_id, text, parse_mode='HTML')

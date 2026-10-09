@@ -7,7 +7,8 @@ from database import (
     init_db, get_user, get_user_rentals, get_rental_payments,
     create_rental, add_payment, get_all_rentals,
     get_rental_by_id, get_rental_documents, is_admin,
-    update_weekly_payment
+    update_weekly_payment, get_rental_payment_info,
+    get_all_overdue_rentals, get_all_active_rentals_with_info
 )
 
 app = Flask(__name__)
@@ -48,16 +49,21 @@ def api_my_rentals():
 
     rentals = async_run(get_user_rentals(user_id))
 
-    # Har bir ijara uchun to'lovlarni qo'shamiz
     result = []
     for rental in rentals:
         rental_dict = dict(rental)
         payments = async_run(get_rental_payments(rental['id']))
         rental_dict['payments'] = [dict(p) for p in payments]
 
-        # Jami to'langan
         total_paid = sum(p['amount'] for p in payments)
         rental_dict['total_paid'] = total_paid
+
+        payment_info = async_run(get_rental_payment_info(rental['id']))
+        if payment_info:
+            rental_dict['paid_until'] = payment_info['paid_until']
+            rental_dict['next_payment_date'] = payment_info['next_payment_date']
+            rental_dict['overdue_days'] = payment_info['overdue_days']
+            rental_dict['debt_amount'] = payment_info['debt_amount']
 
         result.append(rental_dict)
 
@@ -235,6 +241,40 @@ def api_admin_update_weekly_payment():
     except Exception as e:
         print(f"Error updating payment: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/admin/overdue-rentals')
+def api_admin_overdue_rentals():
+    """Kechikkan to'lovlar ro'yxati"""
+    try:
+        overdue = async_run(get_all_overdue_rentals())
+        return jsonify(overdue)
+    except Exception as e:
+        print(f"Error loading overdue rentals: {e}")
+        return jsonify([]), 500
+
+
+@app.route('/api/admin/active-rentals')
+def api_admin_active_rentals():
+    """Barcha aktiv ijaralar to'lov info bilan"""
+    try:
+        rentals = async_run(get_all_active_rentals_with_info())
+        return jsonify(rentals)
+    except Exception as e:
+        print(f"Error loading active rentals: {e}")
+        return jsonify([]), 500
+
+
+@app.route('/api/admin/rental/<int:rental_id>/payment-info')
+def api_admin_rental_payment_info(rental_id):
+    """Bitta ijarani to'lov holati"""
+    try:
+        info = async_run(get_rental_payment_info(rental_id))
+        if not info:
+            return jsonify({'error': 'Topilmadi'}), 404
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     async_run(init_db())

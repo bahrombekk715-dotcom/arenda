@@ -5,7 +5,8 @@ from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import CommandStart
 from aiogram.types import (
     Message, InlineKeyboardMarkup, InlineKeyboardButton,
-    WebAppInfo, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+    WebAppInfo, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove,
+    BotCommand, MenuButtonWebApp
 )
 from dotenv import load_dotenv
 from database import init_db, add_user, get_user, update_user_phone, is_admin
@@ -103,6 +104,27 @@ async def send_main_menu(message: Message, user_id: int, full_name: str, user_is
         f"🛴 <b>Skuter Ijarasi</b> tizimiga xush kelibsiz!\n\n"
         f"Quyidagi tugmani bosing:"
     )
+
+    # Menu button o'rnatish
+    try:
+        if user_is_admin:
+            await bot.set_chat_menu_button(
+                chat_id=user_id,
+                menu_button=MenuButtonWebApp(
+                    text="👨‍💼 Admin Panel",
+                    web_app=WebAppInfo(url=f"{WEBAPP_URL}/admin?user_id={user_id}")
+                )
+            )
+        else:
+            await bot.set_chat_menu_button(
+                chat_id=user_id,
+                menu_button=MenuButtonWebApp(
+                    text="📋 Mening Ijaralarim",
+                    web_app=WebAppInfo(url=my_rentals_url)
+                )
+            )
+    except Exception as e:
+        logger.error(f"Menu button o'rnatishda xatolik: {e}")
 
     await message.answer(text, reply_markup=keyboard, parse_mode='HTML')
 

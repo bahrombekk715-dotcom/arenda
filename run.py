@@ -31,6 +31,12 @@ async def main():
     webapp_thread.start()
     logger.info(f"✅ Web app ishga tushdi: {WEBAPP_URL}")
 
+    # Eslatma xizmatini ishga tushirish
+    from reminder import ReminderService
+    reminder_service = ReminderService(bot)
+    reminder_service.start()
+    logger.info("✅ Eslatma xizmati ishga tushdi")
+
     logger.info("🚀 Telegram bot ishga tushdi!")
     await dp.start_polling(bot)
 

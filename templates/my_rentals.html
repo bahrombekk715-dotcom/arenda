@@ -451,16 +451,91 @@
                 `;
             }
 
+            // Deadline va qarz info
+            let deadlineHtml = '';
+            if (rental.status === 'active') {
+                const overdueDays = rental.overdue_days || 0;
+                const debtAmount = rental.debt_amount || 0;
+                const paidUntil = rental.paid_until;
+                const nextPayment = rental.next_payment_date;
+
+                if (overdueDays > 0) {
+                    deadlineHtml = `
+                        <div style="background: rgba(255, 68, 68, 0.1); border: 1px solid rgba(255, 68, 68, 0.3); border-radius: 12px; padding: 15px; margin-bottom: 15px;">
+                            <div style="color: #ff4444; font-weight: bold; font-size: 16px; margin-bottom: 10px;">
+                                ⚠️ TO'LOV KECHIKKAN!
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; text-align: center;">
+                                    <div style="color: #888; font-size: 12px; margin-bottom: 5px;">Kechikkan kunlar</div>
+                                    <div style="color: #ff4444; font-size: 22px; font-weight: bold;">${overdueDays} kun</div>
+                                </div>
+                                <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; text-align: center;">
+                                    <div style="color: #888; font-size: 12px; margin-bottom: 5px;">Qarz summasi</div>
+                                    <div style="color: #ff4444; font-size: 22px; font-weight: bold;">${formatPrice(debtAmount)}</div>
+                                </div>
+                            </div>
+                            <div style="color: #ff8888; font-size: 13px; margin-top: 10px; text-align: center;">
+                                Iltimos, tezda to'lovni amalga oshiring!
+                            </div>
+                        </div>
+                    `;
+                } else if (paidUntil) {
+                    const paidUntilDate = new Date(paidUntil);
+                    const now = new Date();
+                    const daysLeft = Math.ceil((paidUntilDate - now) / (1000 * 60 * 60 * 24));
+
+                    let bgColor, borderColor, textColor, icon;
+                    if (daysLeft <= 2) {
+                        bgColor = 'rgba(255, 200, 0, 0.1)';
+                        borderColor = 'rgba(255, 200, 0, 0.3)';
+                        textColor = '#ffc800';
+                        icon = '⏰';
+                    } else {
+                        bgColor = 'rgba(0, 255, 136, 0.05)';
+                        borderColor = 'rgba(0, 255, 136, 0.2)';
+                        textColor = '#00ff88';
+                        icon = '✅';
+                    }
+
+                    deadlineHtml = `
+                        <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 12px; padding: 15px; margin-bottom: 15px;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; text-align: center;">
+                                    <div style="color: #888; font-size: 12px; margin-bottom: 5px;">${icon} Pulingiz yetadi</div>
+                                    <div style="color: ${textColor}; font-size: 16px; font-weight: bold;">${formatDate(paidUntil)}</div>
+                                </div>
+                                <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; text-align: center;">
+                                    <div style="color: #888; font-size: 12px; margin-bottom: 5px;">Qolgan kunlar</div>
+                                    <div style="color: ${textColor}; font-size: 22px; font-weight: bold;">${daysLeft} kun</div>
+                                </div>
+                            </div>
+                            <div style="color: #888; font-size: 13px; margin-top: 10px; text-align: center;">
+                                Keyingi to'lov: <b style="color: ${textColor}">${formatDate(nextPayment)}</b>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            const statusBadge = rental.status === 'active'
+                ? (rental.overdue_days > 0
+                    ? '<div class="status-badge" style="background: rgba(255,68,68,0.2); color: #ff4444; border-color: rgba(255,68,68,0.3);">Qarz</div>'
+                    : '<div class="status-badge">Faol</div>')
+                : '<div class="status-badge" style="background: rgba(136,136,136,0.2); color: #888; border-color: rgba(136,136,136,0.3);">Tugagan</div>';
+
             card.innerHTML = `
                 <div class="rental-header">
                     <div>
                         <div class="rental-title">${rental.scooter_name}</div>
                         <div class="rental-date">Boshlangan: ${formatDate(rental.start_date)}</div>
                     </div>
-                    <div class="status-badge">Faol</div>
+                    ${statusBadge}
                 </div>
 
                 <div class="scooter-image-box" ${clickAttr}>${imageHtml}</div>
+
+                ${deadlineHtml}
 
                 <div class="info-section">
                     <div class="info-row">

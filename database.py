@@ -307,10 +307,138 @@ async def complete_rental(rental_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute('UPDATE rentals SET status = "completed" WHERE id = ?', (rental_id,))
 
-        # Get scooter_id to update status
         async with db.execute('SELECT scooter_id FROM rentals WHERE id = ?', (rental_id,)) as cursor:
             rental = await cursor.fetchone()
-            if rental:
+            if rental and rental[0]:
                 await db.execute('UPDATE scooters SET status = "available" WHERE id = ?', (rental[0],))
 
         await db.commit()
+
+
+async def get_rental_payment_info(rental_id: int):
+    """Ijara to'lov holatini hisoblash:
+    - jami to'langan
+    - qachongacha yetadi (paid_until)
+    - keyingi to'lov sanasi
+    - kechikkan kunlar
+    - qarz summasi (har kechikkan kun uchun)
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
+        async with db.execute('SELECT * FROM rentals WHERE id = ?', (rental_id,)) as cursor:
+            rental = await cursor.fetchone()
+        if not rental:
+            return None
+
+        async with db.execute(
+            'SELECT * FROM payments WHERE rental_id = ? ORDER BY payment_date ASC',
+            (rental_id,)
+        ) as cursor:
+            payments = await cursor.fetchall()
+
+        weekly_payment = rental['weekly_payment']
+        start_date = datetime.fromisoformat(rental['start_date'])
+        total_paid = sum(p['amount'] for p in payments)
+
+        if weekly_payment <= 0:
+            return {
+                'rental_id': rental_id,
+                'total_paid': total_paid,
+                'paid_until': None,
+                'paid_until_formatted': None,
+                'next_payment_date': None,
+                'next_payment_formatted': None,
+                'overdue_days': 0,
+                'debt_amount': 0,
+                'weekly_payment': weekly_payment,
+                'status': 'unknown'
+            }
+
+        # Qancha haftalik to'langan
+        paid_weeks = total_paid / weekly_payment
+        paid_until = start_date + timedelta(weeks=paid_weeks)
+
+        now = datetime.now()
+
+        # Keyingi to'lov sanasi = paid_until
+        next_payment_date = paid_until
+
+        # Kechikkan kunlar va qarz hisoblash
+        if now > paid_until:
+            overdue_days = (now - paid_until).days
+            # Har kechikkan kun uchun kunlik to'lov hisoblash
+            daily_rate = weekly_payment / 7
+            debt_amount = overdue_days * daily_rate
+            status = 'overdue'
+        else:
+            overdue_days = 0
+            debt_amount = 0
+            days_left = (paid_until - now).days
+            if days_left <= 3:
+                status = 'warning'
+            else:
+                status = 'active'
+
+        return {
+            'rental_id': rental_id,
+            'total_paid': total_paid,
+            'paid_until': paid_until.isoformat(),
+            'paid_until_formatted': paid_until.strftime('%d.%m.%Y'),
+            'next_payment_date': next_payment_date.isoformat(),
+            'next_payment_formatted': next_payment_date.strftime('%d.%m.%Y'),
+            'overdue_days': overdue_days,
+            'debt_amount': round(debt_amount, 2),
+            'weekly_payment': weekly_payment,
+            'daily_rate': round(weekly_payment / 7, 2),
+            'status': status
+        }
+
+
+async def get_all_overdue_rentals():
+    """Barcha kechikkan to'lovli ijaralar"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute('''
+            SELECT r.*, u.full_name, u.phone, u.username, u.user_id
+            FROM rentals r
+            JOIN users u ON r.user_id = u.user_id
+            WHERE r.status = 'active'
+            ORDER BY r.start_date ASC
+        ''') as cursor:
+            rentals = await cursor.fetchall()
+
+    result = []
+    for rental in rentals:
+        info = await get_rental_payment_info(rental['id'])
+        if info and info['overdue_days'] > 0:
+            rental_dict = dict(rental)
+            rental_dict.update(info)
+            result.append(rental_dict)
+
+    result.sort(key=lambda x: x['overdue_days'], reverse=True)
+    return result
+
+
+async def get_all_active_rentals_with_info():
+    """Barcha aktiv ijaralar to'lov ma'lumotlari bilan"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute('''
+            SELECT r.*, u.full_name, u.phone, u.username, u.user_id
+            FROM rentals r
+            JOIN users u ON r.user_id = u.user_id
+            WHERE r.status = 'active'
+            ORDER BY r.start_date DESC
+        ''') as cursor:
+            rentals = await cursor.fetchall()
+
+    result = []
+    for rental in rentals:
+        rental_dict = dict(rental)
+        info = await get_rental_payment_info(rental['id'])
+        if info:
+            rental_dict.update(info)
+        result.append(rental_dict)
+
+    return result
