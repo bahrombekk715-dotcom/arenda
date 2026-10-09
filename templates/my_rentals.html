@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>📋 Mening Ijaralarim</title>
+    <title>Mening Ijaralarim</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         * {
@@ -111,24 +111,32 @@
             border: 1px solid rgba(0, 255, 136, 0.3);
         }
 
-        .scooter-image {
+        .scooter-image-box {
             width: 100%;
             height: 180px;
-            object-fit: cover;
             border-radius: 15px;
             margin-bottom: 15px;
             background: linear-gradient(135deg, #2c2c3e 0%, #3a3a4e 100%);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 60px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: opacity 0.2s;
         }
 
-        .scooter-image img {
+        .scooter-image-box:hover { opacity: 0.85; }
+
+        .scooter-image-box img {
             width: 100%;
             height: 100%;
             object-fit: cover;
             border-radius: 15px;
+        }
+
+        .scooter-svg-placeholder {
+            width: 140px;
+            height: 140px;
         }
 
         .info-section {
@@ -146,9 +154,7 @@
             margin-bottom: 10px;
         }
 
-        .info-row:last-child {
-            margin-bottom: 0;
-        }
+        .info-row:last-child { margin-bottom: 0; }
 
         .info-label {
             color: #888;
@@ -221,8 +227,9 @@
         }
 
         .empty-state-icon {
-            font-size: 80px;
-            margin-bottom: 20px;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 20px;
             opacity: 0.3;
         }
 
@@ -256,11 +263,51 @@
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
+
+        /* ====== LIGHTBOX ====== */
+        .lightbox {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        .lightbox.active { display: flex; }
+
+        .lightbox-close {
+            position: absolute;
+            top: 15px; right: 20px;
+            font-size: 36px;
+            color: #fff;
+            cursor: pointer;
+            z-index: 3001;
+            width: 44px; height: 44px;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+        }
+
+        .lightbox-content img,
+        .lightbox-content video {
+            max-width: 95vw;
+            max-height: 85vh;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+
+        .lightbox-title {
+            color: #888;
+            font-size: 14px;
+            margin-top: 12px;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>📋 Mening Ijaralarim</h1>
+        <h1>Mening Ijaralarim</h1>
         <p>Skuterlar va to'lovlar tarixi</p>
     </div>
 
@@ -271,10 +318,32 @@
         </div>
         <div id="rentals-container" style="display: none;"></div>
         <div id="empty-state" class="empty-state" style="display: none;">
-            <div class="empty-state-icon">🛴</div>
+            <div class="empty-state-icon">
+                <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="emptyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:0.3"/>
+                            <stop offset="100%" style="stop-color:#00ff88;stop-opacity:0.3"/>
+                        </linearGradient>
+                    </defs>
+                    <circle cx="30" cy="95" r="14" fill="none" stroke="url(#emptyGrad)" stroke-width="3"/>
+                    <circle cx="95" cy="95" r="14" fill="none" stroke="url(#emptyGrad)" stroke-width="3"/>
+                    <path d="M30 95 L40 55 L50 50 L55 45" stroke="url(#emptyGrad)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M40 55 L85 55 L95 95" stroke="url(#emptyGrad)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M55 45 L55 25" stroke="url(#emptyGrad)" stroke-width="4" fill="none" stroke-linecap="round"/>
+                    <path d="M48 25 L62 25" stroke="url(#emptyGrad)" stroke-width="3" fill="none" stroke-linecap="round"/>
+                </svg>
+            </div>
             <div class="empty-state-text">Ijaralar yo'q</div>
             <div class="empty-state-sub">Sizda hali ijara yo'q</div>
         </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div id="lightbox" class="lightbox" onclick="closeLightbox()">
+        <div class="lightbox-close" onclick="closeLightbox()">&times;</div>
+        <div id="lightboxContent" onclick="event.stopPropagation()"></div>
+        <div class="lightbox-title" id="lightboxTitle"></div>
     </div>
 
     <script>
@@ -282,6 +351,53 @@
         tg.expand();
 
         const userId = {{ user_id or 'null' }};
+
+        const SCOOTER_COLORS = [
+            { main: '#00d4ff', accent: '#0099cc' },
+            { main: '#00ff88', accent: '#00cc6a' },
+            { main: '#ff6b6b', accent: '#cc5555' },
+            { main: '#ffd93d', accent: '#ccae31' },
+            { main: '#c084fc', accent: '#9966cc' },
+            { main: '#ff8a5c', accent: '#cc6e4a' },
+        ];
+
+        function getScooterSVG(index) {
+            const c = SCOOTER_COLORS[index % SCOOTER_COLORS.length];
+            return `
+            <svg viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg" class="scooter-svg-placeholder">
+                <defs>
+                    <linearGradient id="sg${index}" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:${c.main}"/>
+                        <stop offset="100%" style="stop-color:${c.accent}"/>
+                    </linearGradient>
+                    <filter id="glow${index}">
+                        <feGaussianBlur stdDeviation="3" result="blur"/>
+                        <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+                    </filter>
+                </defs>
+                <!-- Orqa g'ildirak -->
+                <circle cx="45" cy="130" r="22" fill="none" stroke="url(#sg${index})" stroke-width="5"/>
+                <circle cx="45" cy="130" r="6" fill="url(#sg${index})"/>
+                <!-- Oldingi g'ildirak -->
+                <circle cx="158" cy="130" r="22" fill="none" stroke="url(#sg${index})" stroke-width="5"/>
+                <circle cx="158" cy="130" r="6" fill="url(#sg${index})"/>
+                <!-- Rama -->
+                <path d="M45 130 L60 75 L75 68 L82 58" stroke="url(#sg${index})" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow${index})"/>
+                <!-- Platforma -->
+                <path d="M60 75 L140 75 L158 130" stroke="url(#sg${index})" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                <!-- Rul ustuni -->
+                <path d="M82 58 L82 28" stroke="url(#sg${index})" stroke-width="7" fill="none" stroke-linecap="round"/>
+                <!-- Rul -->
+                <path d="M68 28 L96 28" stroke="url(#sg${index})" stroke-width="5" fill="none" stroke-linecap="round"/>
+                <!-- Dek yuzasi -->
+                <rect x="65" y="70" width="70" height="10" rx="5" fill="${c.main}" opacity="0.15"/>
+                <!-- Farola -->
+                <circle cx="82" cy="22" r="3" fill="${c.main}" opacity="0.8"/>
+                <!-- Batareya ko'rsatgich -->
+                <rect x="95" y="62" width="30" height="16" rx="4" fill="rgba(255,255,255,0.05)" stroke="url(#sg${index})" stroke-width="2"/>
+                <rect x="98" y="65" width="20" height="10" rx="2" fill="url(#sg${index})" opacity="0.4"/>
+            </svg>`;
+        }
 
         async function loadRentals() {
             try {
@@ -298,30 +414,33 @@
                 const container = document.getElementById('rentals-container');
                 container.style.display = 'block';
 
-                data.rentals.forEach(rental => {
-                    const card = createRentalCard(rental);
+                data.rentals.forEach((rental, index) => {
+                    const card = createRentalCard(rental, index);
                     container.appendChild(card);
                 });
             } catch (error) {
                 console.error('Error loading rentals:', error);
-                document.getElementById('loading').innerHTML = '<p style="color: #ff4444;">❌ Yuklanishda xatolik</p>';
+                document.getElementById('loading').innerHTML = '<p style="color: #ff4444;">Yuklanishda xatolik</p>';
             }
         }
 
-        function createRentalCard(rental) {
+        function createRentalCard(rental, index) {
             const card = document.createElement('div');
             card.className = 'rental-card';
 
             const imageHtml = rental.scooter_image
                 ? `<img src="${rental.scooter_image}" alt="${rental.scooter_name}">`
-                : '🛴';
+                : getScooterSVG(index);
 
-            // To'lovlar tarixi
+            const clickAttr = rental.scooter_image
+                ? `onclick="openLightbox('${rental.scooter_image}', '${rental.scooter_name}')"`
+                : '';
+
             let paymentsHistoryHtml = '';
             if (rental.payments && rental.payments.length > 0) {
                 paymentsHistoryHtml = `
                     <div class="payment-history">
-                        <div style="font-size: 12px; color: #888; margin-bottom: 8px;">📝 To'lovlar tarixi:</div>
+                        <div style="font-size: 12px; color: #888; margin-bottom: 8px;">To'lovlar tarixi:</div>
                         ${rental.payments.map(p => `
                             <div class="payment-item">
                                 <span style="color: #888;">${formatDate(p.payment_date)}</span>
@@ -335,23 +454,23 @@
             card.innerHTML = `
                 <div class="rental-header">
                     <div>
-                        <div class="rental-title">🛴 ${rental.scooter_name}</div>
+                        <div class="rental-title">${rental.scooter_name}</div>
                         <div class="rental-date">Boshlangan: ${formatDate(rental.start_date)}</div>
                     </div>
-                    <div class="status-badge">✅ Faol</div>
+                    <div class="status-badge">Faol</div>
                 </div>
 
-                <div class="scooter-image">${imageHtml}</div>
+                <div class="scooter-image-box" ${clickAttr}>${imageHtml}</div>
 
                 <div class="info-section">
                     <div class="info-row">
-                        <span class="info-label">📅 Haftalik to'lov:</span>
+                        <span class="info-label">Haftalik to'lov:</span>
                         <span class="info-value">${formatPrice(rental.weekly_payment)} so'm</span>
                     </div>
                 </div>
 
                 <div class="payment-section">
-                    <div class="payment-title">💰 To'lovlar</div>
+                    <div class="payment-title">To'lovlar</div>
                     <div class="payment-stats">
                         <div class="payment-stat">
                             <div class="payment-stat-label">Jami to'langan</div>
@@ -367,6 +486,22 @@
             `;
 
             return card;
+        }
+
+        // ====== LIGHTBOX ======
+        function openLightbox(src, title) {
+            const lb = document.getElementById('lightbox');
+            document.getElementById('lightboxContent').innerHTML =
+                `<img src="${src}" style="max-width:95vw;max-height:85vh;object-fit:contain;border-radius:8px;" onclick="event.stopPropagation()">`;
+            document.getElementById('lightboxTitle').textContent = title || '';
+            lb.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('active');
+            document.getElementById('lightboxContent').innerHTML = '';
+            document.body.style.overflow = '';
         }
 
         function formatPrice(price) {

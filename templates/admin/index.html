@@ -2,8 +2,8 @@
 <html lang="uz">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>👨‍💼 Admin Panel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Admin Panel</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         * {
@@ -130,10 +130,10 @@
             background: rgba(0, 0, 0, 0.4);
         }
 
-        .form-textarea {
-            min-height: 100px;
-            resize: vertical;
-            font-family: inherit;
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
         }
 
         .file-upload {
@@ -175,6 +175,14 @@
             color: #00ff88;
         }
 
+        .file-preview-img {
+            width: 100%;
+            max-height: 150px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-top: 8px;
+        }
+
         .btn {
             padding: 14px 30px;
             border: none;
@@ -203,6 +211,80 @@
             transform: none;
         }
 
+        /* ====== PROGRESS OVERLAY ====== */
+        .progress-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        .progress-overlay.active { display: flex; }
+
+        .progress-box {
+            background: linear-gradient(135deg, #1e1e2f 0%, #2a2a3e 100%);
+            border-radius: 24px;
+            padding: 40px;
+            width: 85%;
+            max-width: 360px;
+            text-align: center;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+        }
+
+        .progress-scooter {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 20px;
+            animation: scooterBounce 1.5s ease-in-out infinite;
+        }
+
+        @keyframes scooterBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+
+        .progress-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        .progress-bar-container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            height: 12px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+            border-radius: 20px;
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+
+        .progress-percent {
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #00d4ff 0%, #00ff88 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .progress-status {
+            color: #888;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        /* ====== RENTAL LIST ====== */
         .rental-list {
             display: grid;
             gap: 15px;
@@ -244,13 +326,11 @@
             color: #888;
         }
 
+        /* ====== DETAIL MODAL ====== */
         .modal {
             display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0, 0, 0, 0.9);
             z-index: 1000;
             overflow-y: auto;
@@ -270,6 +350,8 @@
             max-width: 600px;
             width: 100%;
             border: 1px solid rgba(0, 212, 255, 0.3);
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         .modal-header {
@@ -294,9 +376,7 @@
             line-height: 1;
         }
 
-        .modal-close:hover {
-            color: #fff;
-        }
+        .modal-close:hover { color: #fff; }
 
         .image-preview {
             width: 100%;
@@ -305,13 +385,17 @@
             border-radius: 10px;
             margin: 10px 0;
             background: rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            transition: opacity 0.2s;
         }
+        .image-preview:hover { opacity: 0.85; }
 
         .video-preview {
             width: 100%;
             max-height: 400px;
             border-radius: 10px;
             margin: 10px 0;
+            cursor: pointer;
         }
 
         .info-grid {
@@ -338,6 +422,51 @@
             font-weight: 600;
         }
 
+        /* ====== LIGHTBOX ====== */
+        .lightbox {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        .lightbox.active { display: flex; }
+
+        .lightbox-close {
+            position: absolute;
+            top: 15px; right: 20px;
+            font-size: 36px;
+            color: #fff;
+            cursor: pointer;
+            z-index: 3001;
+            width: 44px; height: 44px;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+        }
+
+        .lightbox-content {
+            max-width: 95vw;
+            max-height: 85vh;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+
+        .lightbox video {
+            max-width: 95vw;
+            max-height: 85vh;
+            border-radius: 8px;
+        }
+
+        .lightbox-title {
+            color: #888;
+            font-size: 14px;
+            margin-top: 12px;
+        }
+
         .toast {
             position: fixed;
             bottom: 20px;
@@ -348,7 +477,7 @@
             padding: 15px 25px;
             border-radius: 10px;
             font-weight: 600;
-            z-index: 2000;
+            z-index: 4000;
             display: none;
         }
 
@@ -358,14 +487,8 @@
         }
 
         @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translate(-50%, 20px);
-            }
-            to {
-                opacity: 1;
-                transform: translate(-50%, 0);
-            }
+            from { opacity: 0; transform: translate(-50%, 20px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
         }
 
         .loading {
@@ -391,25 +514,36 @@
 </head>
 <body>
     <div class="header">
-        <h1>👨‍💼 Admin Panel</h1>
+        <h1>Admin Panel</h1>
     </div>
 
     <div class="container">
         <div class="tabs">
-            <div class="tab active" onclick="switchTab('create')">➕ Ijara yaratish</div>
-            <div class="tab" onclick="switchTab('list')">📋 Barcha ijaralar</div>
-            <div class="tab" onclick="switchTab('payment')">💰 To'lov kiritish</div>
+            <div class="tab active" onclick="switchTab('create')">Ijara yaratish</div>
+            <div class="tab" onclick="switchTab('list')">Barcha ijaralar</div>
+            <div class="tab" onclick="switchTab('payment')">To'lov kiritish</div>
         </div>
 
         <!-- Ijara yaratish -->
         <div id="tab-create" class="tab-content active">
             <div class="form-card">
-                <div class="form-title">➕ Yangi ijara yaratish</div>
+                <div class="form-title">Yangi ijara yaratish</div>
 
                 <form id="createForm">
                     <div class="form-group">
-                        <label class="form-label">User Telegram ID yoki Telefon raqami</label>
+                        <label class="form-label">Telegram ID yoki Telefon</label>
                         <input type="text" class="form-input" id="userId" placeholder="123456789 yoki +998901234567" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Ism</label>
+                            <input type="text" class="form-input" id="firstName" placeholder="Ism" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Familiya</label>
+                            <input type="text" class="form-input" id="lastName" placeholder="Familiya" required>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -427,7 +561,7 @@
                         <div class="file-upload">
                             <input type="file" id="scooterImage" accept="image/*" onchange="previewFile('scooterImage', 'scooterPreview')">
                             <label class="file-upload-label">
-                                📸 Rasm tanlash
+                                Rasm tanlash
                             </label>
                         </div>
                         <div id="scooterPreview"></div>
@@ -438,7 +572,7 @@
                         <div class="file-upload">
                             <input type="file" id="passportImage" accept="image/*" required onchange="previewFile('passportImage', 'passportPreview')">
                             <label class="file-upload-label">
-                                📄 Pasport tanlash
+                                Pasport tanlash
                             </label>
                         </div>
                         <div id="passportPreview"></div>
@@ -449,13 +583,13 @@
                         <div class="file-upload">
                             <input type="file" id="videoFile" accept="video/*" required onchange="previewFile('videoFile', 'videoPreview')">
                             <label class="file-upload-label">
-                                🎥 Video tanlash
+                                Video tanlash
                             </label>
                         </div>
                         <div id="videoPreview"></div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary">✅ Ijarani yaratish</button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">Ijarani yaratish</button>
                 </form>
             </div>
         </div>
@@ -472,11 +606,11 @@
         <!-- To'lov kiritish -->
         <div id="tab-payment" class="tab-content">
             <div class="form-card">
-                <div class="form-title">💰 To'lov kiritish</div>
+                <div class="form-title">To'lov kiritish</div>
 
                 <form id="paymentForm">
                     <div class="form-group">
-                        <label class="form-label">User Telegram ID yoki Telefon raqami</label>
+                        <label class="form-label">Telegram ID yoki Telefon</label>
                         <input type="text" class="form-input" id="paymentUserId" placeholder="123456789" required>
                     </div>
 
@@ -485,13 +619,13 @@
                         <input type="number" class="form-input" id="paymentAmount" placeholder="100000" required>
                     </div>
 
-                    <button type="submit" class="btn btn-primary">💰 To'lovni kiritish</button>
+                    <button type="submit" class="btn btn-primary">To'lovni kiritish</button>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- Modal -->
+    <!-- Detail Modal -->
     <div id="modal" class="modal" onclick="closeModal(event)">
         <div class="modal-content" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -502,6 +636,44 @@
         </div>
     </div>
 
+    <!-- Progress Overlay -->
+    <div id="progressOverlay" class="progress-overlay">
+        <div class="progress-box">
+            <div class="progress-scooter">
+                <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="scGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#00d4ff"/>
+                            <stop offset="100%" style="stop-color:#00ff88"/>
+                        </linearGradient>
+                    </defs>
+                    <circle cx="30" cy="95" r="14" fill="none" stroke="url(#scGrad)" stroke-width="4"/>
+                    <circle cx="30" cy="95" r="4" fill="url(#scGrad)"/>
+                    <circle cx="95" cy="95" r="14" fill="none" stroke="url(#scGrad)" stroke-width="4"/>
+                    <circle cx="95" cy="95" r="4" fill="url(#scGrad)"/>
+                    <path d="M30 95 L40 55 L50 50 L55 45" stroke="url(#scGrad)" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M40 55 L85 55 L95 95" stroke="url(#scGrad)" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M55 45 L55 25" stroke="url(#scGrad)" stroke-width="5" fill="none" stroke-linecap="round"/>
+                    <path d="M48 25 L62 25" stroke="url(#scGrad)" stroke-width="4" fill="none" stroke-linecap="round"/>
+                    <rect x="60" y="48" width="20" height="12" rx="3" fill="rgba(0,212,255,0.2)" stroke="url(#scGrad)" stroke-width="2"/>
+                </svg>
+            </div>
+            <div class="progress-title">Ijara yaratilmoqda...</div>
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="progressBar"></div>
+            </div>
+            <div class="progress-percent" id="progressPercent">0%</div>
+            <div class="progress-status" id="progressStatus">Ma'lumotlar tayyorlanmoqda...</div>
+        </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div id="lightbox" class="lightbox" onclick="closeLightbox()">
+        <div class="lightbox-close" onclick="closeLightbox()">&times;</div>
+        <div id="lightboxContent" onclick="event.stopPropagation()"></div>
+        <div class="lightbox-title" id="lightboxTitle"></div>
+    </div>
+
     <!-- Toast -->
     <div id="toast" class="toast"></div>
 
@@ -510,31 +682,69 @@
         tg.expand();
 
         function switchTab(tabName) {
-            // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-
-            // Show selected tab
             document.getElementById('tab-' + tabName).classList.add('active');
             event.target.classList.add('active');
-
-            // Load data if needed
-            if (tabName === 'list') {
-                loadRentals();
-            }
+            if (tabName === 'list') loadRentals();
         }
 
         function previewFile(inputId, previewId) {
             const input = document.getElementById(inputId);
             const preview = document.getElementById(previewId);
             const file = input.files[0];
+            if (!file) return;
 
-            if (file) {
-                preview.innerHTML = `<div class="file-preview">✅ ${file.name}</div>`;
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.innerHTML = `
+                        <div class="file-preview">
+                            <img src="${e.target.result}" class="file-preview-img">
+                            <div style="margin-top:6px">${file.name}</div>
+                        </div>`;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                preview.innerHTML = `<div class="file-preview">${file.name}</div>`;
             }
         }
 
-        // Ijara yaratish
+        // ====== PROGRESS BAR ======
+        function showProgress() {
+            document.getElementById('progressOverlay').classList.add('active');
+        }
+
+        function hideProgress() {
+            document.getElementById('progressOverlay').classList.remove('active');
+        }
+
+        function updateProgress(percent, status) {
+            document.getElementById('progressBar').style.width = percent + '%';
+            document.getElementById('progressPercent').textContent = Math.round(percent) + '%';
+            if (status) document.getElementById('progressStatus').textContent = status;
+        }
+
+        async function animateProgress(start, end, duration, status) {
+            return new Promise(resolve => {
+                if (status) updateProgress(start, status);
+                const startTime = Date.now();
+                function step() {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const current = start + (end - start) * progress;
+                    updateProgress(current, status);
+                    if (progress < 1) {
+                        requestAnimationFrame(step);
+                    } else {
+                        resolve();
+                    }
+                }
+                requestAnimationFrame(step);
+            });
+        }
+
+        // ====== IJARA YARATISH ======
         document.getElementById('createForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -542,6 +752,10 @@
             formData.append('user_id', document.getElementById('userId').value);
             formData.append('scooter_name', document.getElementById('scooterName').value);
             formData.append('weekly_payment', document.getElementById('weeklyPayment').value);
+
+            const firstName = document.getElementById('firstName').value.trim();
+            const lastName = document.getElementById('lastName').value.trim();
+            formData.append('full_name', firstName + ' ' + lastName);
 
             const scooterImage = document.getElementById('scooterImage').files[0];
             const passportImage = document.getElementById('passportImage').files[0];
@@ -551,28 +765,61 @@
             if (passportImage) formData.append('passport_image', passportImage);
             if (videoFile) formData.append('video_file', videoFile);
 
+            showProgress();
+            updateProgress(0, "Ma'lumotlar tayyorlanmoqda...");
+
             try {
-                const response = await fetch('/api/admin/create-rental', {
-                    method: 'POST',
-                    body: formData
+                await animateProgress(0, 15, 400, "Ma'lumotlar tayyorlanmoqda...");
+                await animateProgress(15, 35, 500, "Fayllar yuklanmoqda...");
+
+                const xhr = new XMLHttpRequest();
+                const uploadPromise = new Promise((resolve, reject) => {
+                    xhr.upload.addEventListener('progress', (e) => {
+                        if (e.lengthComputable) {
+                            const filePercent = (e.loaded / e.total) * 45;
+                            updateProgress(35 + filePercent, "Fayllar yuklanmoqda...");
+                        }
+                    });
+
+                    xhr.addEventListener('load', () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            resolve(JSON.parse(xhr.responseText));
+                        } else {
+                            try {
+                                reject(JSON.parse(xhr.responseText));
+                            } catch {
+                                reject({ message: 'Server xatoligi' });
+                            }
+                        }
+                    });
+
+                    xhr.addEventListener('error', () => reject({ message: 'Tarmoq xatoligi' }));
+                    xhr.open('POST', '/api/admin/create-rental');
+                    xhr.send(formData);
                 });
 
-                const result = await response.json();
+                await animateProgress(80, 90, 300, "Bazaga yozilmoqda...");
+                const result = await uploadPromise;
+                await animateProgress(90, 100, 400, "Tayyor!");
 
-                if (result.success) {
-                    showToast('✅ Ijara muvaffaqiyatli yaratildi!');
-                    document.getElementById('createForm').reset();
-                    document.querySelectorAll('[id$="Preview"]').forEach(el => el.innerHTML = '');
-                } else {
-                    showToast('❌ ' + result.message);
-                }
+                setTimeout(() => {
+                    hideProgress();
+                    if (result.success) {
+                        showToast('Ijara muvaffaqiyatli yaratildi!');
+                        document.getElementById('createForm').reset();
+                        document.querySelectorAll('[id$="Preview"]').forEach(el => el.innerHTML = '');
+                    } else {
+                        showToast(result.message);
+                    }
+                }, 500);
+
             } catch (error) {
-                console.error('Error:', error);
-                showToast('❌ Xatolik yuz berdi');
+                hideProgress();
+                showToast(error.message || 'Xatolik yuz berdi');
             }
         });
 
-        // To'lov kiritish
+        // ====== TO'LOV ======
         document.getElementById('paymentForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -589,20 +836,18 @@
                 });
 
                 const result = await response.json();
-
                 if (result.success) {
-                    showToast('✅ To\'lov muvaffaqiyatli kiritildi!');
+                    showToast('To\'lov muvaffaqiyatli kiritildi!');
                     document.getElementById('paymentForm').reset();
                 } else {
-                    showToast('❌ ' + result.message);
+                    showToast(result.message);
                 }
             } catch (error) {
-                console.error('Error:', error);
-                showToast('❌ Xatolik yuz berdi');
+                showToast('Xatolik yuz berdi');
             }
         });
 
-        // Ijaralar ro'yxatini yuklash
+        // ====== IJARALAR RO'YXATI ======
         async function loadRentals() {
             try {
                 const response = await fetch('/api/admin/rentals');
@@ -620,13 +865,13 @@
                 container.innerHTML = rentals.map(r => `
                     <div class="rental-item" onclick="showRentalDetails(${r.id})">
                         <div class="rental-item-header">
-                            <div class="rental-item-title">🛴 ${r.scooter_name}</div>
+                            <div class="rental-item-title">${r.scooter_name}</div>
                         </div>
                         <div class="rental-item-info">
-                            <div>👤 ${r.full_name}</div>
-                            <div>📅 ${formatDate(r.start_date)}</div>
-                            <div>💰 ${formatPrice(r.weekly_payment)}/hafta</div>
-                            <div>📱 ${r.phone || '—'}</div>
+                            <div>${r.full_name}</div>
+                            <div>${formatDate(r.start_date)}</div>
+                            <div>${formatPrice(r.weekly_payment)}/hafta</div>
+                            <div>${r.phone || '—'}</div>
                         </div>
                     </div>
                 `).join('');
@@ -635,7 +880,7 @@
             }
         }
 
-        // Ijara tafsilotlarini ko'rsatish
+        // ====== IJARA TAFSILOTLARI + LIGHTBOX ======
         async function showRentalDetails(rentalId) {
             try {
                 const response = await fetch('/api/admin/rental/' + rentalId);
@@ -648,7 +893,7 @@
                 let paymentsHtml = '';
                 if (payments.length > 0) {
                     paymentsHtml = `
-                        <h3 style="color: #00ff88; margin-top: 20px; margin-bottom: 10px;">💰 To'lovlar tarixi</h3>
+                        <h3 style="color: #00ff88; margin-top: 20px; margin-bottom: 10px;">To'lovlar tarixi</h3>
                         ${payments.map(p => `
                             <div class="info-row">
                                 <span class="info-row-label">${formatDate(p.payment_date)}</span>
@@ -661,42 +906,43 @@
                 document.getElementById('modalBody').innerHTML = `
                     <div class="info-grid">
                         <div class="info-row">
-                            <span class="info-row-label">👤 Mijoz:</span>
+                            <span class="info-row-label">Mijoz:</span>
                             <span class="info-row-value">${rental.full_name}</span>
                         </div>
                         <div class="info-row">
-                            <span class="info-row-label">📱 Telefon:</span>
+                            <span class="info-row-label">Telefon:</span>
                             <span class="info-row-value">${rental.phone || '—'}</span>
                         </div>
                         <div class="info-row">
-                            <span class="info-row-label">🛴 Skuter:</span>
+                            <span class="info-row-label">Skuter:</span>
                             <span class="info-row-value">${rental.scooter_name}</span>
                         </div>
                         <div class="info-row">
-                            <span class="info-row-label">💰 Haftalik:</span>
+                            <span class="info-row-label">Haftalik:</span>
                             <span class="info-row-value">${formatPrice(rental.weekly_payment)} so'm</span>
                         </div>
                         <div class="info-row">
-                            <span class="info-row-label">📅 Boshlangan:</span>
+                            <span class="info-row-label">Boshlangan:</span>
                             <span class="info-row-value">${formatDate(rental.start_date)}</span>
                         </div>
                     </div>
 
                     ${rental.scooter_image ? `
-                        <h3 style="color: #00d4ff; margin-top: 20px; margin-bottom: 10px;">🛴 Skuter rasmi</h3>
-                        <img src="${rental.scooter_image}" class="image-preview">
+                        <h3 style="color: #00d4ff; margin-top: 20px; margin-bottom: 10px;">Skuter rasmi</h3>
+                        <img src="${rental.scooter_image}" class="image-preview" onclick="openLightbox('${rental.scooter_image}', 'Skuter rasmi')">
                     ` : ''}
 
                     ${docs && docs.passport_image ? `
-                        <h3 style="color: #00d4ff; margin-top: 20px; margin-bottom: 10px;">📄 Pasport</h3>
-                        <img src="${docs.passport_image}" class="image-preview">
+                        <h3 style="color: #00d4ff; margin-top: 20px; margin-bottom: 10px;">Pasport</h3>
+                        <img src="${docs.passport_image}" class="image-preview" onclick="openLightbox('${docs.passport_image}', 'Pasport')">
                     ` : ''}
 
                     ${docs && docs.video_file ? `
-                        <h3 style="color: #00d4ff; margin-top: 20px; margin-bottom: 10px;">🎥 Video</h3>
-                        <video controls class="video-preview">
+                        <h3 style="color: #00d4ff; margin-top: 20px; margin-bottom: 10px;">Video</h3>
+                        <video class="video-preview" onclick="openLightboxVideo('${docs.video_file}', 'Video')" poster="">
                             <source src="${docs.video_file}" type="video/mp4">
                         </video>
+                        <div style="text-align:center;margin-top:6px;color:#888;font-size:12px;">Kattalashtirish uchun bosing</div>
                     ` : ''}
 
                     ${paymentsHtml}
@@ -704,9 +950,36 @@
 
                 document.getElementById('modal').classList.add('active');
             } catch (error) {
-                console.error('Error loading rental details:', error);
-                showToast('❌ Xatolik yuz berdi');
+                showToast('Xatolik yuz berdi');
             }
+        }
+
+        // ====== LIGHTBOX FUNCTIONS ======
+        function openLightbox(src, title) {
+            const lb = document.getElementById('lightbox');
+            document.getElementById('lightboxContent').innerHTML =
+                `<img src="${src}" class="lightbox-content" onclick="event.stopPropagation()">`;
+            document.getElementById('lightboxTitle').textContent = title || '';
+            lb.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function openLightboxVideo(src, title) {
+            const lb = document.getElementById('lightbox');
+            document.getElementById('lightboxContent').innerHTML =
+                `<video controls autoplay class="lightbox-content" onclick="event.stopPropagation()">
+                    <source src="${src}" type="video/mp4">
+                </video>`;
+            document.getElementById('lightboxTitle').textContent = title || '';
+            lb.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox() {
+            const lb = document.getElementById('lightbox');
+            lb.classList.remove('active');
+            document.getElementById('lightboxContent').innerHTML = '';
+            document.body.style.overflow = '';
         }
 
         function closeModal(event) {

@@ -82,6 +82,7 @@ def api_admin_create_rental():
         user_identifier = request.form.get('user_id')
         scooter_name = request.form.get('scooter_name')
         weekly_payment = float(request.form.get('weekly_payment'))
+        full_name = request.form.get('full_name', '').strip()
 
         # User ID ni topish (telefon yoki ID bo'lishi mumkin)
         if user_identifier.startswith('+') or len(user_identifier) == 12:
@@ -97,6 +98,10 @@ def api_admin_create_rental():
             user = async_run(get_user(user_id))
             if not user:
                 return jsonify({'success': False, 'message': 'Bunday user topilmadi'}), 404
+
+        if full_name:
+            from database import update_user_profile
+            async_run(update_user_profile(user_id, full_name=full_name))
 
         # Fayllarni saqlash
         scooter_image_path = None
