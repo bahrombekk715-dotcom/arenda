@@ -3,19 +3,28 @@ import os
 from datetime import datetime, timedelta, timezone
 
 DATABASE_URL = os.getenv('DATABASE_URL')
+_pool = None
 
 def now_uzbekistan():
     """O'zbekiston vaqti (UTC+5)"""
     return datetime.now(timezone(timedelta(hours=5)))
 
-async def get_db():
-    """PostgreSQL connection pool"""
-    return await asyncpg.connect(DATABASE_URL)
+async def get_pool():
+    """Get or create connection pool"""
+    global _pool
+    if _pool is None:
+        _pool = await asyncpg.create_pool(
+            DATABASE_URL,
+            min_size=1,
+            max_size=10,
+            command_timeout=60
+        )
+    return _pool
 
 async def init_db():
     """Database jadvallarini yaratish"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
@@ -60,12 +69,10 @@ async def init_db():
         ''')
 
         print("✅ Database tables created/verified")
-    finally:
-        await conn.close()
 
 async def add_user(user_id: int, username: str, full_name: str, phone: str = None):
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         await conn.execute('''
             INSERT INTO users (user_id, username, full_name, phone, registration_date)
             VALUES ($1, $2, $3, $4, $5)
@@ -74,51 +81,41 @@ async def add_user(user_id: int, username: str, full_name: str, phone: str = Non
                 full_name = EXCLUDED.full_name,
                 phone = COALESCE(EXCLUDED.phone, users.phone)
         ''', user_id, username, full_name, phone, now_uzbekistan())
-    finally:
-        await conn.close()
 
 async def update_user_phone(user_id: int, phone: str):
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         await conn.execute('UPDATE users SET phone = $1 WHERE user_id = $2', phone, user_id)
-    finally:
-        await conn.close()
 
 async def update_user_profile(user_id: int, full_name: str = None, phone: str = None):
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         if full_name and phone:
             await conn.execute('UPDATE users SET full_name = $1, phone = $2 WHERE user_id = $3', full_name, phone, user_id)
         elif full_name:
             await conn.execute('UPDATE users SET full_name = $1 WHERE user_id = $2', full_name, user_id)
         elif phone:
             await conn.execute('UPDATE users SET phone = $1 WHERE user_id = $2', phone, user_id)
-    finally:
-        await conn.close()
 
 async def get_user(user_id: int):
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         row = await conn.fetchrow('SELECT * FROM users WHERE user_id = $1', user_id)
         return dict(row) if row else None
-    finally:
-        await conn.close()
 
 async def get_user_by_phone(phone: str):
     """Telefon raqam bo'yicha user qidirish"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         row = await conn.fetchrow('SELECT * FROM users WHERE phone = $1', phone)
         return dict(row) if row else None
-    finally:
-        await conn.close()
 
 async def create_rental(user_id: int, scooter_name: str, weekly_payment: float,
                        scooter_image: str = None, passport_image: str = None,
                        video_file: str = None):
     """Admin yangi ijara yaratadi"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         start_date = now_uzbekistan()
 
         # Ijarani yaratish - status ni aniq belgilaymiz
@@ -138,13 +135,11 @@ async def create_rental(user_id: int, scooter_name: str, weekly_payment: float,
             ''', rental_id, passport_image, video_file, now_uzbekistan())
 
         return rental_id
-    finally:
-        await conn.close()
 
 async def get_all_rentals():
     """Barcha ijaralarni olish (admin uchun)"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         rows = await conn.fetch('''
             SELECT r.*, u.full_name, u.phone, u.username
             FROM rentals r
@@ -152,113 +147,92 @@ async def get_all_rentals():
             ORDER BY r.id DESC
         ''')
         return [dict(row) for row in rows]
-    finally:
-        await conn.close()
 
 async def get_rental_by_id(rental_id: int):
     """Bitta ijarani olish"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         row = await conn.fetchrow('SELECT * FROM rentals WHERE id = $1', rental_id)
         return dict(row) if row else None
-    finally:
-        await conn.close()
 
 async def get_rental_documents(rental_id: int):
     """Ijara hujjatlarini olish"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         row = await conn.fetchrow('SELECT * FROM documents WHERE rental_id = $1', rental_id)
         return dict(row) if row else None
-    finally:
-        await conn.close()
 
 async def get_user_rentals(user_id: int, active_only: bool = False):
     """Userning ijaralarini olish"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         query = 'SELECT * FROM rentals WHERE user_id = $1'
         if active_only:
             query += ' AND status = \'active\''
         query += ' ORDER BY start_date DESC'
         rows = await conn.fetch(query, user_id)
         return [dict(row) for row in rows]
-    finally:
-        await conn.close()
 
 async def add_payment(rental_id: int, amount: float):
     """To'lov qo'shish"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         payment_date = now_uzbekistan()
         await conn.execute('''
             INSERT INTO payments (rental_id, amount, payment_date)
             VALUES ($1, $2, $3)
         ''', rental_id, amount, payment_date)
-    finally:
-        await conn.close()
+        print(f"Payment added: {amount} to rental {rental_id}")
 
 async def get_rental_payments(rental_id: int):
     """Ijara to'lovlarini olish"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         rows = await conn.fetch(
             'SELECT * FROM payments WHERE rental_id = $1 ORDER BY payment_date DESC',
             rental_id
         )
         return [dict(row) for row in rows]
-    finally:
-        await conn.close()
 
 async def update_weekly_payment(rental_id: int, new_amount: float):
     """Haftalik to'lovni o'zgartirish"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         await conn.execute('UPDATE rentals SET weekly_payment = $1 WHERE id = $2', new_amount, rental_id)
-    finally:
-        await conn.close()
 
 async def is_admin(user_id: int) -> bool:
     """Check if user is admin"""
-    import os
     admin_ids = os.getenv('ADMIN_IDS', '')
     if str(user_id) in admin_ids:
         return True
 
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         row = await conn.fetchrow('SELECT is_admin FROM users WHERE user_id = $1', user_id)
         return row and row['is_admin'] == 1
-    finally:
-        await conn.close()
 
 async def get_all_admins():
     """Get all admin users"""
-    import os
     admin_ids = [int(x) for x in os.getenv('ADMIN_IDS', '').split(',') if x]
 
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         rows = await conn.fetch('SELECT * FROM users WHERE user_id = ANY($1::bigint[]) OR is_admin = 1', admin_ids)
         return [dict(row) for row in rows]
-    finally:
-        await conn.close()
 
 async def get_all_users():
     """Get all users"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         rows = await conn.fetch('SELECT * FROM users ORDER BY registration_date DESC')
         return [dict(row) for row in rows]
-    finally:
-        await conn.close()
 
 async def complete_rental(rental_id: int):
     """Skuterni topshirish - barcha ma'lumotlarni o'chirish"""
     import os as os_module
 
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         # 1. Hujjat fayllarini olish
         doc = await conn.fetchrow('SELECT passport_image, video_file FROM documents WHERE rental_id = $1', rental_id)
         if doc:
@@ -292,13 +266,11 @@ async def complete_rental(rental_id: int):
         await conn.execute('DELETE FROM rentals WHERE id = $1', rental_id)
 
         print(f"Rental {rental_id} successfully deleted with all files")
-    finally:
-        await conn.close()
 
 async def get_rental_payment_info(rental_id: int):
     """Ijara to'lov holatini hisoblash"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         rental = await conn.fetchrow('SELECT * FROM rentals WHERE id = $1', rental_id)
         if not rental:
             return None
@@ -339,7 +311,6 @@ async def get_rental_payment_info(rental_id: int):
         if now > paid_until:
             overdue_days = (now - paid_until).days
             # Har kechikkan kun uchun kunlik to'lov hisoblash
-            # Misol: 500,000 so'm haftalik → 500,000 ÷ 7 = 71,428.57 so'm kunlik
             daily_rate = weekly_payment / 7.0
             # Qarz = kunlik to'lov × kechikkan kunlar
             debt_amount = overdue_days * daily_rate
@@ -361,18 +332,16 @@ async def get_rental_payment_info(rental_id: int):
             'next_payment_date': next_payment_date.isoformat(),
             'next_payment_formatted': next_payment_date.strftime('%d.%m.%Y'),
             'overdue_days': overdue_days,
-            'debt_amount': round(debt_amount, 0),  # Yaxlitlangan qarz
+            'debt_amount': round(debt_amount, 0),
             'weekly_payment': weekly_payment,
-            'daily_rate': round(daily_rate, 0),  # Kunlik to'lov yaxlitlangan
+            'daily_rate': round(daily_rate, 0),
             'status': status
         }
-    finally:
-        await conn.close()
 
 async def get_all_overdue_rentals():
     """Barcha kechikkan to'lovli ijaralar"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         rentals = await conn.fetch('''
             SELECT r.*, u.full_name, u.phone, u.username, u.user_id
             FROM rentals r
@@ -391,13 +360,11 @@ async def get_all_overdue_rentals():
 
         result.sort(key=lambda x: x['overdue_days'], reverse=True)
         return result
-    finally:
-        await conn.close()
 
 async def get_all_active_rentals_with_info():
     """Barcha aktiv ijaralar to'lov ma'lumotlari bilan"""
-    conn = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         rentals = await conn.fetch('''
             SELECT r.*, u.full_name, u.phone, u.username, u.user_id
             FROM rentals r
@@ -415,5 +382,3 @@ async def get_all_active_rentals_with_info():
             result.append(rental_dict)
 
         return result
-    finally:
-        await conn.close()
