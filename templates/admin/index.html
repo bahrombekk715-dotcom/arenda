@@ -1223,13 +1223,15 @@
 
         // ====== SKUTER TOPSHIRILDI ======
         async function completeRental(rentalId, scooterName) {
-            if (!confirm(`Skuter topshirilganini tasdiqlaysizmi?\n\n🛴 ${scooterName}\n\n⚠️ DIQQAT: Barcha ma'lumotlar va fayllar o'chib ketadi!\nBu amalni qaytarib bo'lmaydi!`)) {
+            const confirmed = confirm('Skuter topshirilganini tasdiqlaysizmi?\n\nSkuter: ' + scooterName + '\n\nDIQQAT: Barcha ma\'lumotlar va fayllar o\'chib ketadi!\nBu amalni qaytarib bo\'lmaydi!');
+
+            if (!confirmed) {
                 return;
             }
 
             closeModal();
             showProgress();
-            document.getElementById('progressTitle').innerHTML = '🛴 Skuter topshirilmoqda...';
+            document.getElementById('progressTitle').textContent = 'Skuter topshirilmoqda...';
 
             try {
                 await animateProgress(0, 25, 500, 'To\'lovlar tozalanmoqda...');
@@ -1248,124 +1250,80 @@
                 setTimeout(() => {
                     hideProgress();
                     if (result.success) {
-                        // Chiroyli muvaffaqiyat modal
                         showSuccessModal(scooterName);
-
-                        // Ro'yxatni yangilash
-                        if (document.getElementById('tab-list').classList.contains('active')) {
-                            loadRentals();
-                        }
-                        if (document.getElementById('tab-overdue').classList.contains('active')) {
-                            loadOverdueRentals();
-                        }
+                        setTimeout(() => {
+                            if (document.getElementById('tab-list').classList.contains('active')) {
+                                loadRentals();
+                            }
+                            if (document.getElementById('tab-overdue').classList.contains('active')) {
+                                loadOverdueRentals();
+                            }
+                        }, 1000);
                     } else {
                         showToast(result.message || 'Xatolik yuz berdi');
                     }
                 }, 400);
 
             } catch (error) {
+                console.error('Complete rental error:', error);
                 hideProgress();
-                showToast('Xatolik yuz berdi');
+                showToast('Xatolik yuz berdi: ' + error.message);
             }
         }
 
         function showSuccessModal(scooterName) {
             const successDiv = document.createElement('div');
-            successDiv.style.cssText = `
-                position: fixed;
-                top: 0; left: 0; right: 0; bottom: 0;
-                background: rgba(0, 0, 0, 0.95);
-                z-index: 5000;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                animation: fadeIn 0.3s ease;
-            `;
+            successDiv.id = 'successModal';
+            successDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);z-index:5000;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.3s ease;';
 
-            successDiv.innerHTML = `
-                <div style="
-                    background: linear-gradient(135deg, #1e1e2f 0%, #2a2a3e 100%);
-                    border-radius: 30px;
-                    padding: 50px 40px;
-                    text-align: center;
-                    max-width: 400px;
-                    border: 2px solid rgba(0, 255, 136, 0.3);
-                    box-shadow: 0 20px 80px rgba(0, 0, 0, 0.8);
-                    animation: scaleIn 0.4s ease;
-                ">
-                    <div style="
-                        width: 100px;
-                        height: 100px;
-                        margin: 0 auto 25px;
-                        background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
-                        border-radius: 50%;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        font-size: 60px;
-                        animation: checkBounce 0.6s ease;
-                        box-shadow: 0 10px 40px rgba(0, 255, 136, 0.4);
-                    ">✓</div>
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = 'background:linear-gradient(135deg,#1e1e2f 0%,#2a2a3e 100%);border-radius:30px;padding:50px 40px;text-align:center;max-width:400px;border:2px solid rgba(0,255,136,0.3);box-shadow:0 20px 80px rgba(0,0,0,0.8);animation:scaleIn 0.4s ease;';
 
-                    <h2 style="
-                        font-size: 28px;
-                        font-weight: 800;
-                        background: linear-gradient(135deg, #00ff88 0%, #00d4ff 100%);
-                        -webkit-background-clip: text;
-                        -webkit-text-fill-color: transparent;
-                        margin-bottom: 15px;
-                    ">Muvaffaqiyatli yakunlandi!</h2>
+            const checkmark = document.createElement('div');
+            checkmark.style.cssText = 'width:100px;height:100px;margin:0 auto 25px;background:linear-gradient(135deg,#00ff88 0%,#00cc6a 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:60px;animation:checkBounce 0.6s ease;box-shadow:0 10px 40px rgba(0,255,136,0.4);color:#000;font-weight:bold;';
+            checkmark.innerHTML = '&#10003;';
 
-                    <p style="color: #888; font-size: 16px; margin-bottom: 10px;">
-                        <b style="color: #00d4ff;">${scooterName}</b>
-                    </p>
+            const title = document.createElement('h2');
+            title.style.cssText = 'font-size:28px;font-weight:800;background:linear-gradient(135deg,#00ff88 0%,#00d4ff 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:15px;';
+            title.textContent = 'Muvaffaqiyatli yakunlandi!';
 
-                    <p style="color: #666; font-size: 14px; line-height: 1.6;">
-                        Skuter topshirildi<br>
-                        Barcha ma'lumotlar tozalandi
-                    </p>
+            const scooterText = document.createElement('p');
+            scooterText.style.cssText = 'color:#888;font-size:16px;margin-bottom:10px;';
+            const scooterBold = document.createElement('b');
+            scooterBold.style.color = '#00d4ff';
+            scooterBold.textContent = scooterName;
+            scooterText.appendChild(scooterBold);
 
-                    <button onclick="this.closest('div').parentElement.remove()" style="
-                        margin-top: 30px;
-                        padding: 15px 40px;
-                        background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
-                        border: none;
-                        border-radius: 12px;
-                        color: #000;
-                        font-size: 16px;
-                        font-weight: bold;
-                        cursor: pointer;
-                        transition: all 0.3s ease;
-                        box-shadow: 0 5px 20px rgba(0, 255, 136, 0.3);
-                    " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                        OK
-                    </button>
-                </div>
+            const descText = document.createElement('p');
+            descText.style.cssText = 'color:#666;font-size:14px;line-height:1.6;';
+            descText.innerHTML = 'Skuter topshirildi<br>Barcha ma\'lumotlar tozalandi';
 
-                <style>
-                    @keyframes fadeIn {
-                        from { opacity: 0; }
-                        to { opacity: 1; }
-                    }
-                    @keyframes scaleIn {
-                        from { transform: scale(0.8); opacity: 0; }
-                        to { transform: scale(1); opacity: 1; }
-                    }
-                    @keyframes checkBounce {
-                        0%, 100% { transform: scale(1); }
-                        25% { transform: scale(1.2); }
-                        50% { transform: scale(0.95); }
-                        75% { transform: scale(1.05); }
-                    }
-                </style>
-            `;
+            const okButton = document.createElement('button');
+            okButton.textContent = 'OK';
+            okButton.style.cssText = 'margin-top:30px;padding:15px 40px;background:linear-gradient(135deg,#00ff88 0%,#00cc6a 100%);border:none;border-radius:12px;color:#000;font-size:16px;font-weight:bold;cursor:pointer;transition:all 0.3s ease;box-shadow:0 5px 20px rgba(0,255,136,0.3);';
+            okButton.onclick = function() {
+                successDiv.remove();
+            };
+            okButton.onmouseover = function() { this.style.transform = 'scale(1.05)'; };
+            okButton.onmouseout = function() { this.style.transform = 'scale(1)'; };
+
+            modalContent.appendChild(checkmark);
+            modalContent.appendChild(title);
+            modalContent.appendChild(scooterText);
+            modalContent.appendChild(descText);
+            modalContent.appendChild(okButton);
+            successDiv.appendChild(modalContent);
+
+            const style = document.createElement('style');
+            style.textContent = '@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes scaleIn{from{transform:scale(0.8);opacity:0}to{transform:scale(1);opacity:1}}@keyframes checkBounce{0%,100%{transform:scale(1)}25%{transform:scale(1.2)}50%{transform:scale(0.95)}75%{transform:scale(1.05)}}';
+            document.head.appendChild(style);
 
             document.body.appendChild(successDiv);
 
-            // 5 soniyadan keyin avtomatik yopiladi
             setTimeout(() => {
-                successDiv.style.animation = 'fadeOut 0.3s ease';
-                setTimeout(() => successDiv.remove(), 300);
+                if (document.getElementById('successModal')) {
+                    successDiv.remove();
+                }
             }, 5000);
         }
     </script>
