@@ -1,19 +1,51 @@
 # 🎯 DEPLOY.md - Render.com ga Deploy Qilish
 
+## ✨ Yangilangan Xususiyatlar (2026-10-10)
+
+### 🆕 Yangi Funksiyalar:
+- ✅ **O'zbekiston vaqt zonasi** - Barcha sanalar UTC+5 (Toshkent vaqti)
+- ✅ **Admin haftalik to'lovni tahrirlash** - Ijaraga o'zgartirish kiritish
+- ✅ **To'liq ma'lumot o'chirish** - Skuterni topshirganda barcha ma'lumotlar va fayllar avtomatik o'chadi
+- ✅ **Zamonaviy UI dizayn** - Qora fond, gradient ranglar, professional animatsiyalar
+- ✅ **Chiroyli progress bar** - Ijara yaratishda animatsiyali yuklash ko'rsatgichi
+- ✅ **Muvaffaqiyat animatsiyasi** - Skuterni topshirganda ajoyib animatsiya
+
+### 🎨 Dizayn O'zgarishlari:
+- Dark theme (qora fond) zamonaviy gradient ranglar bilan
+- Professional animatsiyalar va transition'lar
+- Chiroyli status badge'lar (Faol, Qarz, Kechikkan)
+- Lightbox rasmlar va videolarni kattalashtirish uchun
+- Responsive mobil dizayn
+
+---
+
 ## 📦 Tayyorgarlik
 
 ### 1. GitHub Repository yaratish
 
 ```bash
-cd /home/bahrom/Desktop/code
+cd /home/bahrom/arenda
 
+# Git holatini tekshirish
+git status
+
+# O'zgarishlarni commit qilish
+git add .
+git commit -m "Update: Zamonaviy dizayn, O'zbekiston vaqti, To'liq ma'lumot o'chirish"
+
+# GitHub ga push
+git push origin main
+```
+
+**Agar repository yo'q bo'lsa:**
+```bash
 # Git init
 git init
 git add .
-git commit -m "Initial commit: Professional Scooter Rental Bot"
+git commit -m "Initial commit: Modern Scooter Rental Bot v2.0"
 
-# GitHub ga push (avval GitHub da repository yarating)
-git remote add origin https://github.com/USERNAME/scooter-rental-bot.git
+# GitHub da repository yarating, keyin:
+git remote add origin https://github.com/bahrombekk715-dotcom/arenda.git
 git branch -M main
 git push -u origin main
 ```

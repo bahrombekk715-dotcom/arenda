@@ -1111,6 +1111,17 @@
                     ` : ''}
 
                     ${paymentsHtml}
+
+                    ${rental.status === 'active' ? `
+                        <div style="margin-top: 25px; display: grid; gap: 12px;">
+                            <button onclick="editWeeklyPayment(${rental.id}, ${rental.weekly_payment})" class="btn btn-primary" style="background: linear-gradient(135deg, #ffc800 0%, #ff8800 100%);">
+                                ✏️ Haftalik to'lovni tahrirlash
+                            </button>
+                            <button onclick="completeRental(${rental.id}, '${rental.scooter_name}')" class="btn btn-primary" style="background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);">
+                                ✅ Skuter topshirildi
+                            </button>
+                        </div>
+                    ` : ''}
                 `;
 
                 document.getElementById('modal').classList.add('active');
@@ -1171,6 +1182,191 @@
                 month: '2-digit',
                 day: '2-digit'
             });
+        }
+
+        // ====== HAFTALIK TO'LOVNI TAHRIRLASH ======
+        function editWeeklyPayment(rentalId, currentAmount) {
+            const newAmount = prompt(`Yangi haftalik to'lov summasini kiriting:\n\nHozirgi: ${formatPrice(currentAmount)} so'm`, currentAmount);
+
+            if (!newAmount || newAmount === currentAmount.toString()) return;
+
+            const amount = parseFloat(newAmount);
+            if (isNaN(amount) || amount <= 0) {
+                showToast('Noto\'g\'ri summa kiritildi');
+                return;
+            }
+
+            fetch('/api/admin/update-weekly-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rental_id: rentalId, amount: amount })
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    showToast('Haftalik to\'lov muvaffaqiyatli o\'zgartirildi!');
+                    closeModal();
+                    if (document.getElementById('tab-list').classList.contains('active')) {
+                        loadRentals();
+                    }
+                    if (document.getElementById('tab-overdue').classList.contains('active')) {
+                        loadOverdueRentals();
+                    }
+                } else {
+                    showToast(result.message || 'Xatolik yuz berdi');
+                }
+            })
+            .catch(error => {
+                showToast('Xatolik yuz berdi');
+            });
+        }
+
+        // ====== SKUTER TOPSHIRILDI ======
+        async function completeRental(rentalId, scooterName) {
+            if (!confirm(`Skuter topshirilganini tasdiqlaysizmi?\n\n🛴 ${scooterName}\n\n⚠️ DIQQAT: Barcha ma'lumotlar va fayllar o'chib ketadi!\nBu amalni qaytarib bo'lmaydi!`)) {
+                return;
+            }
+
+            closeModal();
+            showProgress();
+            document.getElementById('progressTitle').innerHTML = '🛴 Skuter topshirilmoqda...';
+
+            try {
+                await animateProgress(0, 25, 500, 'To\'lovlar tozalanmoqda...');
+                await animateProgress(25, 50, 500, 'Hujjatlar o\'chirilmoqda...');
+                await animateProgress(50, 75, 500, 'Fayllar tozalanmoqda...');
+
+                const response = await fetch('/api/admin/complete-rental', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rental_id: rentalId })
+                });
+
+                const result = await response.json();
+                await animateProgress(75, 100, 400, 'Yakunlanmoqda...');
+
+                setTimeout(() => {
+                    hideProgress();
+                    if (result.success) {
+                        // Chiroyli muvaffaqiyat modal
+                        showSuccessModal(scooterName);
+
+                        // Ro'yxatni yangilash
+                        if (document.getElementById('tab-list').classList.contains('active')) {
+                            loadRentals();
+                        }
+                        if (document.getElementById('tab-overdue').classList.contains('active')) {
+                            loadOverdueRentals();
+                        }
+                    } else {
+                        showToast(result.message || 'Xatolik yuz berdi');
+                    }
+                }, 400);
+
+            } catch (error) {
+                hideProgress();
+                showToast('Xatolik yuz berdi');
+            }
+        }
+
+        function showSuccessModal(scooterName) {
+            const successDiv = document.createElement('div');
+            successDiv.style.cssText = `
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0, 0, 0, 0.95);
+                z-index: 5000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                animation: fadeIn 0.3s ease;
+            `;
+
+            successDiv.innerHTML = `
+                <div style="
+                    background: linear-gradient(135deg, #1e1e2f 0%, #2a2a3e 100%);
+                    border-radius: 30px;
+                    padding: 50px 40px;
+                    text-align: center;
+                    max-width: 400px;
+                    border: 2px solid rgba(0, 255, 136, 0.3);
+                    box-shadow: 0 20px 80px rgba(0, 0, 0, 0.8);
+                    animation: scaleIn 0.4s ease;
+                ">
+                    <div style="
+                        width: 100px;
+                        height: 100px;
+                        margin: 0 auto 25px;
+                        background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 60px;
+                        animation: checkBounce 0.6s ease;
+                        box-shadow: 0 10px 40px rgba(0, 255, 136, 0.4);
+                    ">✓</div>
+
+                    <h2 style="
+                        font-size: 28px;
+                        font-weight: 800;
+                        background: linear-gradient(135deg, #00ff88 0%, #00d4ff 100%);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        margin-bottom: 15px;
+                    ">Muvaffaqiyatli yakunlandi!</h2>
+
+                    <p style="color: #888; font-size: 16px; margin-bottom: 10px;">
+                        <b style="color: #00d4ff;">${scooterName}</b>
+                    </p>
+
+                    <p style="color: #666; font-size: 14px; line-height: 1.6;">
+                        Skuter topshirildi<br>
+                        Barcha ma'lumotlar tozalandi
+                    </p>
+
+                    <button onclick="this.closest('div').parentElement.remove()" style="
+                        margin-top: 30px;
+                        padding: 15px 40px;
+                        background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+                        border: none;
+                        border-radius: 12px;
+                        color: #000;
+                        font-size: 16px;
+                        font-weight: bold;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                        box-shadow: 0 5px 20px rgba(0, 255, 136, 0.3);
+                    " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        OK
+                    </button>
+                </div>
+
+                <style>
+                    @keyframes fadeIn {
+                        from { opacity: 0; }
+                        to { opacity: 1; }
+                    }
+                    @keyframes scaleIn {
+                        from { transform: scale(0.8); opacity: 0; }
+                        to { transform: scale(1); opacity: 1; }
+                    }
+                    @keyframes checkBounce {
+                        0%, 100% { transform: scale(1); }
+                        25% { transform: scale(1.2); }
+                        50% { transform: scale(0.95); }
+                        75% { transform: scale(1.05); }
+                    }
+                </style>
+            `;
+
+            document.body.appendChild(successDiv);
+
+            // 5 soniyadan keyin avtomatik yopiladi
+            setTimeout(() => {
+                successDiv.style.animation = 'fadeOut 0.3s ease';
+                setTimeout(() => successDiv.remove(), 300);
+            }, 5000);
         }
     </script>
 </body>

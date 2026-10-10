@@ -8,7 +8,8 @@ from database import (
     create_rental, add_payment, get_all_rentals,
     get_rental_by_id, get_rental_documents, is_admin,
     update_weekly_payment, get_rental_payment_info,
-    get_all_overdue_rentals, get_all_active_rentals_with_info
+    get_all_overdue_rentals, get_all_active_rentals_with_info,
+    complete_rental
 )
 
 app = Flask(__name__)
@@ -275,6 +276,23 @@ def api_admin_rental_payment_info(rental_id):
         return jsonify(info)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/complete-rental', methods=['POST'])
+def api_admin_complete_rental():
+    """Skuter topshirildi - ijarani yakunlash"""
+    try:
+        data = request.json
+        rental_id = int(data.get('rental_id'))
+
+        async_run(complete_rental(rental_id))
+
+        return jsonify({
+            'success': True,
+            'message': 'Ijara muvaffaqiyatli yakunlandi!'
+        })
+    except Exception as e:
+        print(f"Error completing rental: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 if __name__ == '__main__':
     async_run(init_db())

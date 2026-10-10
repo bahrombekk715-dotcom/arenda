@@ -1,8 +1,12 @@
 import aiosqlite
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 DB_PATH = os.getenv('DATABASE_PATH', 'data/scooter_rental.db')
+
+def now_uzbekistan():
+    """O'zbekiston vaqti (UTC+5)"""
+    return datetime.now(timezone(timedelta(hours=5)))
 
 async def init_db():
     os.makedirs('data', exist_ok=True)
@@ -66,7 +70,7 @@ async def add_user(user_id: int, username: str, full_name: str, phone: str = Non
                 username = excluded.username,
                 full_name = excluded.full_name,
                 phone = COALESCE(excluded.phone, users.phone)
-        ''', (user_id, username, full_name, phone, datetime.now().isoformat()))
+        ''', (user_id, username, full_name, phone, now_uzbekistan().isoformat()))
         await db.commit()
 
 async def update_user_phone(user_id: int, phone: str):
@@ -142,7 +146,7 @@ async def create_rental(user_id: int, scooter_name: str, weekly_payment: float,
                        video_file: str = None):
     """Admin yangi ijara yaratadi"""
     async with aiosqlite.connect(DB_PATH) as db:
-        start_date = datetime.now()
+        start_date = now_uzbekistan()
 
         # Ijarani yaratish
         cursor = await db.execute('''
@@ -157,7 +161,7 @@ async def create_rental(user_id: int, scooter_name: str, weekly_payment: float,
             await db.execute('''
                 INSERT INTO documents (rental_id, passport_image, video_file, upload_date)
                 VALUES (?, ?, ?, ?)
-            ''', (rental_id, passport_image, video_file, datetime.now().isoformat()))
+            ''', (rental_id, passport_image, video_file, now_uzbekistan().isoformat()))
 
         await db.commit()
         return rental_id
@@ -202,7 +206,7 @@ async def get_user_rentals(user_id: int, active_only: bool = False):
 async def add_payment(rental_id: int, amount: float):
     """To'lov qo'shish"""
     async with aiosqlite.connect(DB_PATH) as db:
-        payment_date = datetime.now()
+        payment_date = now_uzbekistan()
         await db.execute('''
             INSERT INTO payments (rental_id, amount, payment_date)
             VALUES (?, ?, ?)
@@ -303,14 +307,44 @@ async def get_all_users():
             return await cursor.fetchall()
 
 async def complete_rental(rental_id: int):
-    """Mark rental as completed"""
+    """Skuterni topshirish - barcha ma'lumotlarni o'chirish"""
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute('UPDATE rentals SET status = "completed" WHERE id = ?', (rental_id,))
+        # 1. To'lovlarni o'chirish
+        await db.execute('DELETE FROM payments WHERE rental_id = ?', (rental_id,))
 
-        async with db.execute('SELECT scooter_id FROM rentals WHERE id = ?', (rental_id,)) as cursor:
+        # 2. Hujjatlarni olish va fayllarni o'chirish
+        async with db.execute('SELECT passport_image, video_file FROM documents WHERE rental_id = ?', (rental_id,)) as cursor:
+            doc = await cursor.fetchone()
+            if doc:
+                # Fayllarni diskdan o'chirish
+                import os
+                if doc[0] and os.path.exists(doc[0].lstrip('/')):
+                    try:
+                        os.remove(doc[0].lstrip('/'))
+                    except:
+                        pass
+                if doc[1] and os.path.exists(doc[1].lstrip('/')):
+                    try:
+                        os.remove(doc[1].lstrip('/'))
+                    except:
+                        pass
+
+        # 3. Hujjatlarni o'chirish
+        await db.execute('DELETE FROM documents WHERE rental_id = ?', (rental_id,))
+
+        # 4. Skuterni suratini olish va o'chirish
+        async with db.execute('SELECT scooter_image FROM rentals WHERE id = ?', (rental_id,)) as cursor:
             rental = await cursor.fetchone()
             if rental and rental[0]:
-                await db.execute('UPDATE scooters SET status = "available" WHERE id = ?', (rental[0],))
+                scooter_img = rental[0].lstrip('/')
+                if os.path.exists(scooter_img):
+                    try:
+                        os.remove(scooter_img)
+                    except:
+                        pass
+
+        # 5. Ijarani o'chirish
+        await db.execute('DELETE FROM rentals WHERE id = ?', (rental_id,))
 
         await db.commit()
 
@@ -359,7 +393,7 @@ async def get_rental_payment_info(rental_id: int):
         paid_weeks = total_paid / weekly_payment
         paid_until = start_date + timedelta(weeks=paid_weeks)
 
-        now = datetime.now()
+        now = now_uzbekistan()
 
         # Keyingi to'lov sanasi = paid_until
         next_payment_date = paid_until
