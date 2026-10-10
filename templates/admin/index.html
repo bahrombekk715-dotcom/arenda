@@ -1222,35 +1222,40 @@
         }
 
         // ====== SKUTER TOPSHIRILDI ======
-        async function completeRental(rentalId, scooterName) {
+        function completeRental(rentalId, scooterName) {
             const confirmed = confirm('Skuter topshirilganini tasdiqlaysizmi?\n\nSkuter: ' + scooterName + '\n\nDIQQAT: Barcha ma\'lumotlar va fayllar o\'chib ketadi!\nBu amalni qaytarib bo\'lmaydi!');
 
             if (!confirmed) {
                 return;
             }
 
+            console.log('Complete rental started:', rentalId);
             closeModal();
             showProgress();
-            document.getElementById('progressTitle').textContent = 'Skuter topshirilmoqda...';
+            updateProgress(10, 'Boshlandi...');
 
-            try {
-                await animateProgress(0, 25, 500, 'To\'lovlar tozalanmoqda...');
-                await animateProgress(25, 50, 500, 'Hujjatlar o\'chirilmoqda...');
-                await animateProgress(50, 75, 500, 'Fayllar tozalanmoqda...');
-
-                const response = await fetch('/api/admin/complete-rental', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ rental_id: rentalId })
-                });
-
-                const result = await response.json();
-                await animateProgress(75, 100, 400, 'Yakunlanmoqda...');
+            // API so'rovini yuborish
+            fetch('/api/admin/complete-rental', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rental_id: rentalId })
+            })
+            .then(response => {
+                console.log('Response received:', response.status);
+                updateProgress(50, 'Ma\'lumotlar tozalanmoqda...');
+                return response.json();
+            })
+            .then(result => {
+                console.log('Result:', result);
+                updateProgress(100, 'Tayyor!');
 
                 setTimeout(() => {
                     hideProgress();
+
                     if (result.success) {
                         showSuccessModal(scooterName);
+
+                        // Ro'yxatni yangilash
                         setTimeout(() => {
                             if (document.getElementById('tab-list').classList.contains('active')) {
                                 loadRentals();
@@ -1262,25 +1267,25 @@
                     } else {
                         showToast(result.message || 'Xatolik yuz berdi');
                     }
-                }, 400);
-
-            } catch (error) {
+                }, 500);
+            })
+            .catch(error => {
                 console.error('Complete rental error:', error);
                 hideProgress();
                 showToast('Xatolik yuz berdi: ' + error.message);
-            }
+            });
         }
 
         function showSuccessModal(scooterName) {
             const successDiv = document.createElement('div');
             successDiv.id = 'successModal';
-            successDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);z-index:5000;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.3s ease;';
+            successDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);z-index:5000;display:flex;align-items:center;justify-content:center;';
 
             const modalContent = document.createElement('div');
-            modalContent.style.cssText = 'background:linear-gradient(135deg,#1e1e2f 0%,#2a2a3e 100%);border-radius:30px;padding:50px 40px;text-align:center;max-width:400px;border:2px solid rgba(0,255,136,0.3);box-shadow:0 20px 80px rgba(0,0,0,0.8);animation:scaleIn 0.4s ease;';
+            modalContent.style.cssText = 'background:linear-gradient(135deg,#1e1e2f 0%,#2a2a3e 100%);border-radius:30px;padding:50px 40px;text-align:center;max-width:400px;border:2px solid rgba(0,255,136,0.3);box-shadow:0 20px 80px rgba(0,0,0,0.8);';
 
             const checkmark = document.createElement('div');
-            checkmark.style.cssText = 'width:100px;height:100px;margin:0 auto 25px;background:linear-gradient(135deg,#00ff88 0%,#00cc6a 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:60px;animation:checkBounce 0.6s ease;box-shadow:0 10px 40px rgba(0,255,136,0.4);color:#000;font-weight:bold;';
+            checkmark.style.cssText = 'width:100px;height:100px;margin:0 auto 25px;background:linear-gradient(135deg,#00ff88 0%,#00cc6a 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:60px;box-shadow:0 10px 40px rgba(0,255,136,0.4);color:#000;font-weight:bold;';
             checkmark.innerHTML = '&#10003;';
 
             const title = document.createElement('h2');
@@ -1289,10 +1294,7 @@
 
             const scooterText = document.createElement('p');
             scooterText.style.cssText = 'color:#888;font-size:16px;margin-bottom:10px;';
-            const scooterBold = document.createElement('b');
-            scooterBold.style.color = '#00d4ff';
-            scooterBold.textContent = scooterName;
-            scooterText.appendChild(scooterBold);
+            scooterText.innerHTML = '<b style="color:#00d4ff;">' + scooterName + '</b>';
 
             const descText = document.createElement('p');
             descText.style.cssText = 'color:#666;font-size:14px;line-height:1.6;';
@@ -1300,12 +1302,10 @@
 
             const okButton = document.createElement('button');
             okButton.textContent = 'OK';
-            okButton.style.cssText = 'margin-top:30px;padding:15px 40px;background:linear-gradient(135deg,#00ff88 0%,#00cc6a 100%);border:none;border-radius:12px;color:#000;font-size:16px;font-weight:bold;cursor:pointer;transition:all 0.3s ease;box-shadow:0 5px 20px rgba(0,255,136,0.3);';
+            okButton.style.cssText = 'margin-top:30px;padding:15px 40px;background:linear-gradient(135deg,#00ff88 0%,#00cc6a 100%);border:none;border-radius:12px;color:#000;font-size:16px;font-weight:bold;cursor:pointer;box-shadow:0 5px 20px rgba(0,255,136,0.3);';
             okButton.onclick = function() {
                 successDiv.remove();
             };
-            okButton.onmouseover = function() { this.style.transform = 'scale(1.05)'; };
-            okButton.onmouseout = function() { this.style.transform = 'scale(1)'; };
 
             modalContent.appendChild(checkmark);
             modalContent.appendChild(title);
@@ -1313,10 +1313,6 @@
             modalContent.appendChild(descText);
             modalContent.appendChild(okButton);
             successDiv.appendChild(modalContent);
-
-            const style = document.createElement('style');
-            style.textContent = '@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes scaleIn{from{transform:scale(0.8);opacity:0}to{transform:scale(1);opacity:1}}@keyframes checkBounce{0%,100%{transform:scale(1)}25%{transform:scale(1.2)}50%{transform:scale(0.95)}75%{transform:scale(1.05)}}';
-            document.head.appendChild(style);
 
             document.body.appendChild(successDiv);
 
