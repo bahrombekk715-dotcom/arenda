@@ -31,7 +31,13 @@ async def cmd_start(message: Message):
         db_user = await get_user(user.id)
         user_is_admin = await is_admin(user.id)
 
-        # Telefon raqam yo'q bo'lsa so'raymiz
+        # Admin uchun telefon raqam shart emas
+        if user_is_admin:
+            await add_user(user.id, user.username or '', user.full_name, phone='admin')
+            await send_main_menu(message, user.id, user.full_name, user_is_admin)
+            return
+
+        # Oddiy user uchun telefon raqam kerak
         if not db_user or not db_user['phone']:
             await add_user(user.id, user.username or '', user.full_name)
 
@@ -86,36 +92,47 @@ async def handle_contact(message: Message):
 
 async def send_main_menu(message: Message, user_id: int, full_name: str, user_is_admin: bool):
     """Asosiy menyu"""
-    my_rentals_url = f"{WEBAPP_URL}/my-rentals?user_id={user_id}"
-
-    buttons = [
-        [InlineKeyboardButton(text="📋 Mening Ijaralarim", web_app=WebAppInfo(url=my_rentals_url))]
-    ]
+    role_badge = "👨‍💼 Admin" if user_is_admin else "🌟 Mijoz"
 
     if user_is_admin:
+        # Admin uchun faqat Admin Panel
         admin_url = f"{WEBAPP_URL}/admin?user_id={user_id}"
-        buttons.insert(0, [InlineKeyboardButton(text="👨‍💼 Admin Panel", web_app=WebAppInfo(url=admin_url))])
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="👨‍💼 Admin Panel", web_app=WebAppInfo(url=admin_url))]]
+        )
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+        text = (
+            f"👋 Salom, <b>{full_name}</b>! ({role_badge})\n\n"
+            f"🛴 <b>Admin Panel</b>ga xush kelibsiz!\n\n"
+            f"Quyidagi tugmani bosing:"
+        )
 
-    role_badge = "👨‍💼 Admin" if user_is_admin else "🌟 Mijoz"
-    text = (
-        f"👋 Salom, <b>{full_name}</b>! ({role_badge})\n\n"
-        f"🛴 <b>Skuter Ijarasi</b> tizimiga xush kelibsiz!\n\n"
-        f"Quyidagi tugmani bosing:"
-    )
-
-    # Menu button o'rnatish
-    try:
-        if user_is_admin:
+        # Menu button o'rnatish
+        try:
             await bot.set_chat_menu_button(
                 chat_id=user_id,
                 menu_button=MenuButtonWebApp(
                     text="👨‍💼 Admin Panel",
-                    web_app=WebAppInfo(url=f"{WEBAPP_URL}/admin?user_id={user_id}")
+                    web_app=WebAppInfo(url=admin_url)
                 )
             )
-        else:
+        except Exception as e:
+            logger.error(f"Menu button o'rnatishda xatolik: {e}")
+    else:
+        # Oddiy user uchun faqat Mening ijaralarim
+        my_rentals_url = f"{WEBAPP_URL}/my-rentals?user_id={user_id}"
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="📋 Mening Ijaralarim", web_app=WebAppInfo(url=my_rentals_url))]]
+        )
+
+        text = (
+            f"👋 Salom, <b>{full_name}</b>! ({role_badge})\n\n"
+            f"🛴 <b>Skuter Ijarasi</b> tizimiga xush kelibsiz!\n\n"
+            f"Quyidagi tugmani bosing:"
+        )
+
+        # Menu button o'rnatish
+        try:
             await bot.set_chat_menu_button(
                 chat_id=user_id,
                 menu_button=MenuButtonWebApp(
@@ -123,8 +140,8 @@ async def send_main_menu(message: Message, user_id: int, full_name: str, user_is
                     web_app=WebAppInfo(url=my_rentals_url)
                 )
             )
-    except Exception as e:
-        logger.error(f"Menu button o'rnatishda xatolik: {e}")
+        except Exception as e:
+            logger.error(f"Menu button o'rnatishda xatolik: {e}")
 
     await message.answer(text, reply_markup=keyboard, parse_mode='HTML')
 
