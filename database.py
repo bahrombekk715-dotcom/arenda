@@ -409,12 +409,14 @@ async def get_rental_payment_info(rental_id: int):
         if now > paid_until:
             overdue_days = (now - paid_until).days
             # Har kechikkan kun uchun kunlik to'lov hisoblash
-            daily_rate = weekly_payment / 7
+            # Misol: 500,000 so'm haftalik → 500,000 ÷ 7 = 71,428.57 so'm kunlik
+            daily_rate = weekly_payment / 7.0
+            # Qarz = kunlik to'lov × kechikkan kunlar
             debt_amount = overdue_days * daily_rate
             status = 'overdue'
         else:
             overdue_days = 0
-            debt_amount = 0
+            debt_amount = 0.0
             days_left = (paid_until - now).days
             if days_left <= 3:
                 status = 'warning'
@@ -429,9 +431,9 @@ async def get_rental_payment_info(rental_id: int):
             'next_payment_date': next_payment_date.isoformat(),
             'next_payment_formatted': next_payment_date.strftime('%d.%m.%Y'),
             'overdue_days': overdue_days,
-            'debt_amount': round(debt_amount, 2),
+            'debt_amount': round(debt_amount, 0),  # Yaxlitlangan qarz
             'weekly_payment': weekly_payment,
-            'daily_rate': round(weekly_payment / 7, 2),
+            'daily_rate': round(daily_rate, 0),  # Kunlik to'lov yaxlitlangan
             'status': status
         }
 
