@@ -308,6 +308,8 @@ async def get_all_users():
 
 async def complete_rental(rental_id: int):
     """Skuterni topshirish - barcha ma'lumotlarni o'chirish"""
+    import os as os_module
+
     async with aiosqlite.connect(DB_PATH) as db:
         # 1. To'lovlarni o'chirish
         await db.execute('DELETE FROM payments WHERE rental_id = ?', (rental_id,))
@@ -317,17 +319,21 @@ async def complete_rental(rental_id: int):
             doc = await cursor.fetchone()
             if doc:
                 # Fayllarni diskdan o'chirish
-                import os
-                if doc[0] and os.path.exists(doc[0].lstrip('/')):
-                    try:
-                        os.remove(doc[0].lstrip('/'))
-                    except:
-                        pass
-                if doc[1] and os.path.exists(doc[1].lstrip('/')):
-                    try:
-                        os.remove(doc[1].lstrip('/'))
-                    except:
-                        pass
+                if doc[0]:
+                    file_path = doc[0].lstrip('/')
+                    if os_module.path.exists(file_path):
+                        try:
+                            os_module.remove(file_path)
+                        except Exception as e:
+                            print(f"Error deleting passport file: {e}")
+
+                if doc[1]:
+                    file_path = doc[1].lstrip('/')
+                    if os_module.path.exists(file_path):
+                        try:
+                            os_module.remove(file_path)
+                        except Exception as e:
+                            print(f"Error deleting video file: {e}")
 
         # 3. Hujjatlarni o'chirish
         await db.execute('DELETE FROM documents WHERE rental_id = ?', (rental_id,))
@@ -337,16 +343,17 @@ async def complete_rental(rental_id: int):
             rental = await cursor.fetchone()
             if rental and rental[0]:
                 scooter_img = rental[0].lstrip('/')
-                if os.path.exists(scooter_img):
+                if os_module.path.exists(scooter_img):
                     try:
-                        os.remove(scooter_img)
-                    except:
-                        pass
+                        os_module.remove(scooter_img)
+                    except Exception as e:
+                        print(f"Error deleting scooter image: {e}")
 
         # 5. Ijarani o'chirish
         await db.execute('DELETE FROM rentals WHERE id = ?', (rental_id,))
 
         await db.commit()
+        print(f"Rental {rental_id} successfully deleted with all files")
 
 
 async def get_rental_payment_info(rental_id: int):
