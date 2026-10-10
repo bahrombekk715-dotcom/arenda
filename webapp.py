@@ -163,6 +163,8 @@ def api_admin_add_payment():
         user_identifier = data.get('user_id')
         amount = float(data.get('amount'))
 
+        print(f"Payment request: user={user_identifier}, amount={amount}")
+
         # User ID ni topish
         if user_identifier.startswith('+') or len(user_identifier) == 12:
             from database import get_user_by_phone
@@ -173,15 +175,21 @@ def api_admin_add_payment():
         else:
             user_id = int(user_identifier)
 
+        print(f"User ID: {user_id}")
+
         # User'ning faol ijarasini topish
         rentals = async_run(get_user_rentals(user_id, active_only=True))
+        print(f"Active rentals found: {len(rentals) if rentals else 0}")
+
         if not rentals:
             return jsonify({'success': False, 'message': 'Bu userda faol ijara yo\'q'}), 404
 
         rental_id = rentals[0]['id']
+        print(f"Rental ID: {rental_id}")
 
         # To'lov qo'shish
         async_run(add_payment(rental_id, amount))
+        print(f"Payment added successfully to rental {rental_id}")
 
         return jsonify({
             'success': True,
@@ -189,8 +197,11 @@ def api_admin_add_payment():
         })
 
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
         print(f"Error adding payment: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        print(f"Full error: {error_details}")
+        return jsonify({'success': False, 'message': f'Xatolik: {str(e)}'}), 500
 
 @app.route('/api/admin/rentals')
 def api_admin_rentals():

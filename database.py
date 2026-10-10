@@ -148,13 +148,14 @@ async def create_rental(user_id: int, scooter_name: str, weekly_payment: float,
     async with aiosqlite.connect(DB_PATH) as db:
         start_date = now_uzbekistan()
 
-        # Ijarani yaratish
+        # Ijarani yaratish - status ni aniq belgilaymiz
         cursor = await db.execute('''
-            INSERT INTO rentals (user_id, scooter_name, weekly_payment, start_date, scooter_image)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (user_id, scooter_name, weekly_payment, start_date.isoformat(), scooter_image))
+            INSERT INTO rentals (user_id, scooter_name, weekly_payment, start_date, status, scooter_image)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (user_id, scooter_name, weekly_payment, start_date.isoformat(), 'active', scooter_image))
 
         rental_id = cursor.lastrowid
+        print(f"Created rental {rental_id} with status 'active'")
 
         # Hujjatlarni saqlash
         if passport_image or video_file:
